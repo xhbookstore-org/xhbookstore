@@ -1,0 +1,45 @@
+# ============================================================
+# 数据源公共配置 — 所有模块共享
+# ============================================================
+spring:
+    datasource:
+        type: com.alibaba.druid.pool.DruidDataSource
+        driverClassName: com.mysql.cj.jdbc.Driver
+        druid:
+            master:
+                url: jdbc:mysql://152.136.127.168:3306/xhbookstore?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&characterSetResults=utf8mb4&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+                username: xhbookstore
+                password: txkrnsXy3CWcECxW
+            slave:
+                enabled: false
+                url:
+                username:
+                password:
+            initialSize: 5
+            minIdle: 5
+            maxActive: 20
+            maxWait: 60000
+            connectTimeout: 30000
+            socketTimeout: 60000
+            timeBetweenEvictionRunsMillis: 60000
+            minEvictableIdleTimeMillis: 300000
+            maxEvictableIdleTimeMillis: 900000
+            validationQuery: SELECT 1 FROM DUAL
+            connectionInitSqls:
+              - SET NAMES utf8mb4
+            testWhileIdle: true
+            testOnBorrow: false
+            testOnReturn: false
+            webStatFilter:
+                enabled: false
+            statViewServlet:
+                enabled: false
+            filter:
+                stat:
+                    enabled: true
+                    log-slow-sql: true
+                    slow-sql-millis: 1000
+                    merge-sql: true
+                wall:
+                    config:
+                        multi-statement-allow: true

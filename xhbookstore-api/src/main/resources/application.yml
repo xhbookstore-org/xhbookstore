@@ -1,0 +1,16 @@
+# ========== api 模块独有配置 ==========
+
+spring:
+  config:
+    import: classpath:application-base.yml
+  main:
+    allow-bean-definition-overriding: true
+
+server:
+  port: 8091
+  servlet:
+    context-path: /
+
+logging:
+  level:
+    com.xhbookstore.api: debug

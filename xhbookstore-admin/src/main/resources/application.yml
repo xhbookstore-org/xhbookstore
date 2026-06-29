@@ -1,0 +1,59 @@
+# ========== admin 模块独有配置 ==========
+
+spring:
+  config:
+    import: classpath:application-base.yml
+  messages:
+    basename: i18n/messages
+  devtools:
+    restart:
+      enabled: true
+  datasource:
+    druid:
+      webStatFilter:
+        enabled: true
+      statViewServlet:
+        enabled: true
+        allow:
+        url-pattern: /druid/*
+        login-username: xhbookstore
+        login-password: 123456
+
+# 项目信息
+xhbookstore:
+  name: XhBookstore
+  version: 3.9.2
+  copyrightYear: 2026
+  profile: D:/xhbookstore/uploadPath
+  addressEnabled: false
+  captchaType: math
+
+server:
+  port: 8090
+  servlet:
+    context-path: /
+  tomcat:
+    uri-encoding: UTF-8
+    accept-count: 1000
+    threads:
+      max: 800
+      min-spare: 100
+
+# Springdoc
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    tags-sorter: alpha
+  group-configs:
+    - group: 'default'
+      display-name: '测试模块'
+      paths-to-match: '/**'
+      packages-to-scan: com.xhbookstore.web.controller.tool
+
+logging:
+  level:
+    com.xhbookstore: debug
+    org.springframework: warn

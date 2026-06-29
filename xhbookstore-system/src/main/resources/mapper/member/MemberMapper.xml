@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.MemberMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.member.Member" id="MemberResult">
+        <id property="id" column="id"/>
+        <result property="cardNo" column="card_no"/>
+        <result property="name" column="name"/>
+        <result property="phone" column="phone"/>
+        <result property="cardTypeId" column="card_type_id"/>
+        <result property="levelId" column="level_id"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="validDate" column="valid_date"/>
+        <result property="status" column="status"/>
+        <result property="borrowCountValid" column="borrow_count_valid"/>
+        <result property="currentPoints" column="current_points"/>
+        <result property="remark" column="remark"/>
+        <result property="lastOperator" column="last_operator"/>
+        <result property="source" column="source"/>
+        <result property="syncErp" column="sync_erp"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="cardTypeName" column="card_type_name"/>
+        <result property="deptName" column="dept_name"/>
+    </resultMap>
+
+    <sql id="selectMemberVo">
+        select m.id, m.card_no, m.name, m.phone, m.card_type_id, m.level_id, m.dept_id,
+               m.valid_date, m.status, m.borrow_count_valid, m.current_points, m.remark,
+               m.last_operator, m.source, m.sync_erp, m.created_at, m.updated_at,
+               ct.type_name as card_type_name, d.dept_name
+        from member m
+        left join card_type ct on m.card_type_id = ct.id
+        left join sys_dept d on m.dept_id = d.dept_id
+    </sql>
+
+    <select id="selectMemberList" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">
+        <include refid="selectMemberVo"/>
+        where m.status != 1
+        <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
+        <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
+        <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
+        <if test="params.beginTime != null and params.beginTime != ''">
+            and date_format(m.created_at,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+        </if>
+        <if test="params.endTime != null and params.endTime != ''">
+            and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+        </if>
+        order by m.created_at desc
+    </select>
+
+    <select id="selectMemberListForExport" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">
+        <include refid="selectMemberVo"/>
+        where m.status != 1
+        <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
+        <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
+        <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
+        <if test="params.beginTime != null and params.beginTime != ''">
+            and date_format(m.created_at,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+        </if>
+        <if test="params.endTime != null and params.endTime != ''">
+            and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+        </if>
+        order by m.created_at desc
+    </select>
+
+    <select id="selectMemberById" parameterType="Integer" resultMap="MemberResult">
+        <include refid="selectMemberVo"/>
+        where m.id = #{id}
+    </select>
+
+    <select id="selectMemberByIdForUpdate" parameterType="Integer" resultMap="MemberResult">
+        <include refid="selectMemberVo"/>
+        where m.id = #{id} for update
+    </select>
+
+    <select id="selectMemberByPhone" parameterType="String" resultMap="MemberResult">
+        <include refid="selectMemberVo"/>
+        where m.phone = #{phone} and m.status != 1 limit 1
+    </select>
+
+    <select id="selectMemberByCardNo" parameterType="String" resultMap="MemberResult">
+        <include refid="selectMemberVo"/>
+        where m.card_no = #{cardNo} limit 1
+    </select>
+
+    <select id="selectMaxCardNoByDept" parameterType="String" resultType="String">
+        select max(card_no) from member where card_no like concat(#{deptPrefix}, '%')
+    </select>
+
+    <insert id="insertMember" parameterType="com.xhbookstore.system.domain.member.Member" useGeneratedKeys="true" keyProperty="id">
+        insert into member (card_no, name, phone, card_type_id, level_id, dept_id, valid_date, status, borrow_count_valid, current_points, remark, last_operator, source, sync_erp, created_at)
+        values (#{cardNo}, #{name}, #{phone}, #{cardTypeId}, #{levelId}, #{deptId}, #{validDate}, #{status}, #{borrowCountValid}, #{currentPoints}, #{remark}, #{lastOperator}, #{source}, #{syncErp}, now())
+    </insert>
+
+    <update id="updateMember" parameterType="com.xhbookstore.system.domain.member.Member">
+        update member
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="cardTypeId != null">card_type_id = #{cardTypeId},</if>
+            <if test="levelId != null">level_id = #{levelId},</if>
+            <if test="deptId != null">dept_id = #{deptId},</if>
+            <if test="validDate != null">valid_date = #{validDate},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="borrowCountValid != null">borrow_count_valid = #{borrowCountValid},</if>
+            <if test="currentPoints != null">current_points = #{currentPoints},</if>
+            <if test="remark != null">remark = #{remark},</if>
+            <if test="lastOperator != null">last_operator = #{lastOperator},</if>
+            updated_at = now()
+        </set>
+        where id = #{id}
+    </update>
+
+    <update id="deleteMemberById" parameterType="Integer">
+        update member set status = 1, updated_at = now() where id = #{id}
+    </update>
+
+</mapper>

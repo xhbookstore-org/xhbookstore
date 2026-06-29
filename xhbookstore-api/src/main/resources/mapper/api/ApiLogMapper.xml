@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.api.mapper.ApiLogMapper">
+
+    <insert id="insertApiLog" parameterType="com.xhbookstore.api.domain.ApiLog" useGeneratedKeys="true" keyProperty="id">
+        insert into xhbs_api_log (
+            request_id, request_uri, http_method, client_ip, user_id,
+            request_params, response_body, response_code, cost_time,
+            user_agent, created_at
+        ) values (
+            #{requestId}, #{requestUri}, #{httpMethod}, #{clientIp}, #{userId},
+            #{requestParams}, #{responseBody}, #{responseCode}, #{costTime},
+            #{userAgent}, now()
+        )
+    </insert>
+
+</mapper>

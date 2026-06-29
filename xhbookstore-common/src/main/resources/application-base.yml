@@ -1,0 +1,67 @@
+# ============================================================
+# 公共基础配置 — 所有模块共享
+# 各模块通过 spring.config.import: classpath:application-base.yml 引入
+# ============================================================
+
+spring:
+  config:
+    import: classpath:application-druid.yml
+  profiles:
+    active: druid
+  http:
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 20MB
+  data:
+    redis:
+      host: 152.136.127.168
+      port: 6379
+      password: xhbookstore
+      database: 0
+      timeout: 10s
+      lettuce:
+        pool:
+          min-idle: 0
+          max-idle: 8
+          max-active: 8
+          max-wait: -1ms
+
+# MyBatis
+mybatis:
+  typeAliasesPackage: com.xhbookstore.**.domain
+  mapperLocations: classpath*:mapper/**/*Mapper.xml
+  configLocation: classpath:mybatis/mybatis-config.xml
+
+# PageHelper
+pagehelper:
+  helperDialect: mysql
+  supportMethodsArguments: true
+  params: count=countSql
+
+# Token
+token:
+  header: Authorization
+  secret: abcdefghijklmnopqrstuvwxyz
+  expireTime: 30
+
+# XSS
+xss:
+  enabled: false
+  excludes: ""
+  urlPatterns: ""
+
+# 防盗链
+referer:
+  enabled: false
+  allowed-domains: "*"
+
+# 用户
+user:
+  password:
+    maxRetryCount: 5
+    lockTime: 10
