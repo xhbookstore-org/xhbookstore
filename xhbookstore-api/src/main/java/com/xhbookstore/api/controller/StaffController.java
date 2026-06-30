@@ -1,6 +1,7 @@
 package com.xhbookstore.api.controller;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -10,8 +11,10 @@ import com.xhbookstore.api.model.ApiResponse;
 import com.xhbookstore.api.model.PageResult;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.PointsOrder;
+import com.xhbookstore.system.domain.book.*;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
+import com.xhbookstore.system.service.book.IBookBorrowService;
 
 /**
  * 员工端接口 - 文档 §12
@@ -24,6 +27,8 @@ public class StaffController {
     private IMemberService memberService;
     @Autowired
     private IPointsService pointsService;
+    @Autowired
+    private IBookBorrowService bookBorrowService;
 
     /**
      * 查询员工首页 §12.1
@@ -114,6 +119,7 @@ public class StaffController {
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") int pageNo,
             @RequestParam(defaultValue = "20") int pageSize) {
+        // TODO: 全市查询需跨member，暂返回空
         Map<String, Object> data = new HashMap<>();
         data.put("page", new PageResult<>(Collections.emptyList(), pageNo, pageSize, 0));
         return ApiResponse.success(data);
@@ -124,26 +130,49 @@ public class StaffController {
      */
     @GetMapping("/borrows/{borrowId}")
     public ApiResponse<Map<String, Object>> borrowDetail(@PathVariable String borrowId) {
-        return ApiResponse.success(new HashMap<>());
+        BookBorrowOrder order = bookBorrowService.selectOrderByNo(borrowId);
+        if (order == null) {
+            throw new ApiException(ApiErrorCode.NOT_FOUND, "借书单不存在");
+        }
+        List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(order.getId());
+        List<BookReturnDetail> returns = bookBorrowService.selectReturnsByOrderId(order.getId());
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("order", order);
+        data.put("details", details);
+        data.put("returns", returns);
+        return ApiResponse.success(data);
     }
 
     /**
      * 办理还书 §12.6
      */
+    @SuppressWarnings("unchecked")
     @PostMapping("/borrow-returns")
-    public ApiResponse<Map<String, Object>> returnBooks(@RequestBody Map<String, Object> body) {
-        @SuppressWarnings("unchecked")
-        List<String> borrowItemIds = (List<String>) body.get("borrowItemIds");
-        if (borrowItemIds == null || borrowItemIds.isEmpty()) {
+    public ApiResponse<Map<String, Object>> returnBooks(@RequestBody Map<String, Object> body,
+                                                         HttpServletRequest request) {
+        String borrowOrderNo = (String) body.get("borrowOrderNo");
+        List<Map<String, Object>> returnItems = (List<Map<String, Object>>) body.get("returnItems");
+        if (borrowOrderNo == null || borrowOrderNo.isEmpty()) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "缺少借书单号");
+        }
+        if (returnItems == null || returnItems.isEmpty()) {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择要还的图书");
         }
 
-        // TODO: 实际还书逻辑
-        Map<String, Object> data = new HashMap<>();
-        data.put("success", true);
-        data.put("returnedAt", System.currentTimeMillis());
-        data.put("currentBorrowingCount", 0);
-        return ApiResponse.success(data);
+        String staffId = (String) request.getAttribute("userId");
+        if (staffId == null) staffId = "system";
+        String staffName = "员工";
+
+        com.xhbookstore.common.core.domain.AjaxResult result = bookBorrowService.returnBook(
+                borrowOrderNo, returnItems, staffId, staffName, null);
+
+        if (result.isError()) {
+            throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED, (String) result.get("msg"));
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respData = (Map<String, Object>) result.get("data");
+        return ApiResponse.success(respData);
     }
 
     /**
@@ -161,48 +190,62 @@ public class StaffController {
             throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
         }
 
+        List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(Integer.parseInt(memberId));
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (BookBorrowOrder o : orders) {
+            Map<String, Object> r = new HashMap<>();
+            r.put("orderNo", o.getOrderNo());
+            r.put("totalBookCount", o.getTotalBookCount());
+            r.put("borrowStatus", o.getBorrowStatus());
+            r.put("borrowTime", o.getBorrowTime() != null ? o.getBorrowTime().getTime() : null);
+            r.put("returnAllTime", o.getReturnAllTime() != null ? o.getReturnAllTime().getTime() : null);
+            r.put("remark", o.getRemark());
+            List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
+            r.put("details", details);
+            records.add(r);
+        }
+
         Map<String, Object> memberMap = new HashMap<>();
         memberMap.put("memberId", String.valueOf(member.getId()));
         memberMap.put("memberNo", member.getCardNo());
         memberMap.put("memberName", member.getName());
         memberMap.put("phoneDisplay", maskPhone(member.getPhone()));
         memberMap.put("currentPoints", member.getCurrentPoints());
-        memberMap.put("currentBorrowingCount", 0);
 
         Map<String, Object> data = new HashMap<>();
         data.put("member", memberMap);
-        data.put("page", new PageResult<>(Collections.emptyList(), pageNo, pageSize, 0));
+        data.put("page", new PageResult<>(records, pageNo, pageSize, records.size()));
         return ApiResponse.success(data);
     }
 
     /**
      * 办理借阅 §12.8
      */
+    @SuppressWarnings("unchecked")
     @PostMapping("/members/{memberId}/borrows")
     public ApiResponse<Map<String, Object>> borrow(
             @PathVariable String memberId,
-            @RequestBody Map<String, Object> body) {
-        @SuppressWarnings("unchecked")
+            @RequestBody Map<String, Object> body,
+            HttpServletRequest request) {
         List<Map<String, Object>> books = (List<Map<String, Object>>) body.get("books");
         if (books == null || books.isEmpty()) {
             throw new ApiException(ApiErrorCode.BORROW_BOOK_REQUIRED);
         }
-        for (Map<String, Object> book : books) {
-            @SuppressWarnings("unchecked")
-            List<String> imageIds = (List<String>) book.get("attachmentImageIds");
-            if (imageIds == null || imageIds.isEmpty()) {
-                throw new ApiException(ApiErrorCode.BORROW_IMAGE_REQUIRED);
-            }
-        }
 
-        // TODO: 实际借阅逻辑
-        Map<String, Object> data = new HashMap<>();
-        data.put("success", true);
-        data.put("borrowIds", Collections.singletonList("BORROW_" + System.currentTimeMillis()));
-        data.put("borrowItemIds", Collections.singletonList("ITEM_" + System.currentTimeMillis()));
-        data.put("currentBorrowingCount", 1);
-        data.put("createdAt", System.currentTimeMillis());
-        return ApiResponse.success(data);
+        String staffId = (String) request.getAttribute("userId");
+        if (staffId == null) staffId = "system";
+        String staffName = "员工";
+        String remark = (String) body.get("remark");
+
+        com.xhbookstore.common.core.domain.AjaxResult result = bookBorrowService.createBorrowOrder(
+                Integer.parseInt(memberId), books, remark, staffId, staffName, null);
+
+        if (result.isError()) {
+            throw new ApiException(ApiErrorCode.BORROW_DENIED, (String) result.get("msg"));
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> respData2 = (Map<String, Object>) result.get("data");
+        return ApiResponse.success(respData2);
     }
 
     /**

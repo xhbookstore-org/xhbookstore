@@ -25,6 +25,7 @@ public class ApiErrorCode {
     public static final int AUTH_TOKEN_EXPIRED = 10003;
     public static final int AUTH_TOKEN_INVALID = 10004;
     public static final int AUTH_LOGIN_FAILED = 10005;
+    public static final int RATE_LIMIT = 10006;
 
     // ========== 会员模块 02xxx ==========
     public static final int MEMBER_NOT_FOUND = 20001;
@@ -74,6 +75,7 @@ public class ApiErrorCode {
         MESSAGES.put(AUTH_TOKEN_EXPIRED, "登录已过期，请重新登录");
         MESSAGES.put(AUTH_TOKEN_INVALID, "无效的访问令牌");
         MESSAGES.put(AUTH_LOGIN_FAILED, "登录失败");
+        MESSAGES.put(RATE_LIMIT, "操作过于频繁，请稍后再试");
 
         MESSAGES.put(MEMBER_NOT_FOUND, "会员不存在");
         MESSAGES.put(MEMBER_CARD_EXPIRED, "会员卡已过期");

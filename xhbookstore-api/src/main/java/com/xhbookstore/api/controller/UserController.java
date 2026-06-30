@@ -8,8 +8,10 @@ import com.xhbookstore.api.model.ApiResponse;
 import com.xhbookstore.api.model.PageResult;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.PointsOrder;
+import com.xhbookstore.system.domain.book.*;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
+import com.xhbookstore.system.service.book.IBookBorrowService;
 
 /**
  * 用户端接口 - 文档 §11
@@ -22,6 +24,8 @@ public class UserController {
     private IMemberService memberService;
     @Autowired
     private IPointsService pointsService;
+    @Autowired
+    private IBookBorrowService bookBorrowService;
 
     /**
      * 查询用户首页 §11.1
@@ -65,13 +69,28 @@ public class UserController {
     @GetMapping("/borrows")
     public ApiResponse<Map<String, Object>> myBorrows(
             @RequestParam(defaultValue = "1") int pageNo,
-            @RequestParam(defaultValue = "20") int pageSize) {
-        // TODO: 实现借阅查询
+            @RequestParam(defaultValue = "20") int pageSize,
+            HttpServletRequest request) {
+        // TODO: 从Token获取memberId，当前用固定值
+        Integer memberId = 1;
+        List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(memberId);
+        List<Map<String, Object>> records = new ArrayList<>();
+        for (BookBorrowOrder o : orders) {
+            Map<String, Object> r = new HashMap<>();
+            r.put("orderNo", o.getOrderNo());
+            r.put("totalBookCount", o.getTotalBookCount());
+            r.put("borrowStatus", o.getBorrowStatus());
+            r.put("borrowTime", o.getBorrowTime() != null ? o.getBorrowTime().getTime() : null);
+            List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
+            r.put("details", details);
+            records.add(r);
+        }
+
         Map<String, Object> data = new HashMap<>();
         data.put("memberDisplay", "138****0001");
-        data.put("yearBorrowCount", 0);
-        data.put("currentBorrowingCount", 0);
-        data.put("page", new PageResult<>(Collections.emptyList(), pageNo, pageSize, 0));
+        data.put("yearBorrowCount", orders.size());
+        data.put("currentBorrowingCount", orders.stream().filter(o -> o.getBorrowStatus() != null && o.getBorrowStatus() != 2 && o.getBorrowStatus() != 5).count());
+        data.put("page", new PageResult<>(records, pageNo, pageSize, records.size()));
         return ApiResponse.success(data);
     }
 
@@ -80,8 +99,15 @@ public class UserController {
      */
     @GetMapping("/borrows/{borrowId}")
     public ApiResponse<Map<String, Object>> borrowDetail(@PathVariable String borrowId) {
-        // TODO: 实现借阅详情查询
-        return ApiResponse.success(new HashMap<>());
+        BookBorrowOrder order = bookBorrowService.selectOrderByNo(borrowId);
+        if (order == null) return ApiResponse.success(new HashMap<>());
+        List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(order.getId());
+        List<BookReturnDetail> returns = bookBorrowService.selectReturnsByOrderId(order.getId());
+        Map<String, Object> data = new HashMap<>();
+        data.put("order", order);
+        data.put("details", details);
+        data.put("returns", returns);
+        return ApiResponse.success(data);
     }
 
     /**

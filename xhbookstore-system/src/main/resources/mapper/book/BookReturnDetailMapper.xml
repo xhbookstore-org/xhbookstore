@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.book.BookReturnDetailMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.book.BookReturnDetail" id="BookReturnDetailResult">
+        <id property="id" column="id"/>
+        <result property="returnOrderNo" column="return_order_no"/>
+        <result property="borrowOrderId" column="borrow_order_id"/>
+        <result property="borrowOrderNo" column="borrow_order_no"/>
+        <result property="borrowDetailId" column="borrow_detail_id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="bookId" column="book_id"/>
+        <result property="bookName" column="book_name"/>
+        <result property="returnQty" column="return_qty"/>
+        <result property="returnTime" column="return_time"/>
+        <result property="returnType" column="return_type"/>
+        <result property="remark" column="remark"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="staffId" column="staff_id"/>
+        <result property="staffName" column="staff_name"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="isDel" column="is_del"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookReturnDetail" useGeneratedKeys="true" keyProperty="id">
+        insert into book_return_detail (return_order_no, borrow_order_id, borrow_order_no, borrow_detail_id,
+            member_id, book_id, book_name, return_qty, return_time, return_type,
+            remark, dept_id, staff_id, staff_name, created_at)
+        values (#{returnOrderNo}, #{borrowOrderId}, #{borrowOrderNo}, #{borrowDetailId},
+            #{memberId}, #{bookId}, #{bookName}, #{returnQty}, now(), #{returnType},
+            #{remark}, #{deptId}, #{staffId}, #{staffName}, now())
+    </insert>
+
+    <select id="selectByBorrowDetailId" parameterType="Long" resultMap="BookReturnDetailResult">
+        select * from book_return_detail where borrow_detail_id = #{borrowDetailId} and is_del = 0
+        order by created_at desc
+    </select>
+
+    <select id="selectByBorrowOrderId" parameterType="Long" resultMap="BookReturnDetailResult">
+        select * from book_return_detail where borrow_order_id = #{borrowOrderId} and is_del = 0
+        order by created_at desc
+    </select>
+
+    <select id="selectMaxReturnOrderNo" parameterType="String" resultType="String">
+        select max(return_order_no) from book_return_detail where return_order_no like concat(#{prefix}, '%')
+    </select>
+</mapper>

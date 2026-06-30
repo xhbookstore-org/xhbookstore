@@ -28,11 +28,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(JwtAuthenticationFilter.class);
     private static final AntPathMatcher pathMatcher = new AntPathMatcher();
-    private static final String TOKEN_SECRET = "abcdefghijklmnopqrstuvwxyz";
+    private final String tokenSecret;
+
+    public JwtAuthenticationFilter(String tokenSecret) {
+        this.tokenSecret = tokenSecret;
+    }
 
     // 白名单 - 无需Token的路径
     private static final List<String> WHITE_LIST = Arrays.asList(
         "/api/mp/v1/auth/wechat-phone-login",
+        "/api/mp/v1/auth/refresh-token",
         "/api/mp/v1/auth/session",
         "/error"
     );
@@ -64,7 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         // 验证Token
         try {
             Claims claims = Jwts.parser()
-                    .setSigningKey(TOKEN_SECRET)
+                    .setSigningKey(tokenSecret)
                     .parseClaimsJws(token)
                     .getBody();
             // 将用户信息存入request，供Controller使用

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.book.BookBorrowDetailImageMapper">
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookBorrowDetailImage" useGeneratedKeys="true" keyProperty="id">
+        insert into book_borrow_detail_image (borrow_detail_id, borrow_order_id, borrow_order_no,
+            image_id, image_name, image_url, thumb_url, sort_order, image_type, image_status,
+            create_staff_id, create_staff_name, created_at)
+        values (#{borrowDetailId}, #{borrowOrderId}, #{borrowOrderNo},
+            #{imageId}, #{imageName}, #{imageUrl}, #{thumbUrl}, #{sortOrder}, #{imageType}, 0,
+            #{createStaffId}, #{createStaffName}, now())
+    </insert>
+</mapper>

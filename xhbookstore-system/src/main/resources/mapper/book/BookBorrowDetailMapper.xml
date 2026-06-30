@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.book.BookBorrowDetailMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.book.BookBorrowDetail" id="BookBorrowDetailResult">
+        <id property="id" column="id"/>
+        <result property="borrowOrderId" column="borrow_order_id"/>
+        <result property="borrowOrderNo" column="borrow_order_no"/>
+        <result property="memberId" column="member_id"/>
+        <result property="bookId" column="book_id"/>
+        <result property="bookName" column="book_name"/>
+        <result property="borrowQty" column="borrow_qty"/>
+        <result property="returnedQty" column="returned_qty"/>
+        <result property="purchaseQty" column="purchase_qty"/>
+        <result property="borrowStatus" column="borrow_status"/>
+        <result property="borrowTime" column="borrow_time"/>
+        <result property="returnAllTime" column="return_all_time"/>
+        <result property="purchaseOrderNo" column="purchase_order_no"/>
+        <result property="remark" column="remark"/>
+        <result property="firstStaffId" column="first_staff_id"/>
+        <result property="firstStaffName" column="first_staff_name"/>
+        <result property="lastStaffId" column="last_staff_id"/>
+        <result property="lastStaffName" column="last_staff_name"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="isDel" column="is_del"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookBorrowDetail" useGeneratedKeys="true" keyProperty="id">
+        insert into book_borrow_detail (borrow_order_id, borrow_order_no, member_id, book_id, book_name,
+            borrow_qty, returned_qty, purchase_qty, borrow_status, borrow_time,
+            remark, first_staff_id, first_staff_name, last_staff_id, last_staff_name, created_at)
+        values (#{borrowOrderId}, #{borrowOrderNo}, #{memberId}, #{bookId}, #{bookName},
+            #{borrowQty}, 0, 0, 1, now(),
+            #{remark}, #{firstStaffId}, #{firstStaffName}, #{firstStaffId}, #{firstStaffName}, now())
+    </insert>
+
+    <select id="selectById" parameterType="Long" resultMap="BookBorrowDetailResult">
+        select * from book_borrow_detail where id = #{id} and is_del = 0
+    </select>
+
+    <select id="selectByOrderId" parameterType="Long" resultMap="BookBorrowDetailResult">
+        select * from book_borrow_detail where borrow_order_id = #{borrowOrderId} and is_del = 0
+    </select>
+
+    <select id="selectByMemberId" parameterType="Integer" resultMap="BookBorrowDetailResult">
+        select * from book_borrow_detail where member_id = #{memberId} and is_del = 0
+        order by created_at desc
+    </select>
+
+    <update id="updateReturnInfo" parameterType="com.xhbookstore.system.domain.book.BookBorrowDetail">
+        update book_borrow_detail
+        <set>
+            <if test="returnedQty != null">returned_qty = #{returnedQty},</if>
+            <if test="borrowStatus != null">borrow_status = #{borrowStatus},</if>
+            <if test="returnAllTime != null">return_all_time = #{returnAllTime},</if>
+            <if test="lastStaffId != null">last_staff_id = #{lastStaffId},</if>
+            <if test="lastStaffName != null">last_staff_name = #{lastStaffName},</if>
+            updated_at = now()
+        </set>
+        where id = #{id}
+    </update>
+</mapper>
