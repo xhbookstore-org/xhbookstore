@@ -1,0 +1,32 @@
+# Server Environment Configuration
+# Maps environment names to deployment targets
+
+# Staging (Test) Environment
+staging:
+  ip: 152.136.127.168
+  profile: staging
+  ssh_key: ~/.ssh/id_ed25519_deploy
+  ssh_user: root
+  # Paths
+  ui_path: /www/wwwroot/xhbookstore-ui
+  jar_path: /www/server/java/projects
+  # Java
+  java_home: /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+  # Systemd services
+  admin_service: xhbookstore-admin
+  api_service: xhbookstore-api
+  # JVM options
+  jvm_opts: -Xmx256m -Xms128m
+
+# Production Environment
+prod:
+  ip: <PROD_IP_NOT_SET>
+  profile: prod
+  ssh_key: ~/.ssh/id_ed25519_deploy
+  ssh_user: root
+  ui_path: /www/wwwroot/xhbookstore-ui
+  jar_path: /www/server/java/projects
+  java_home: /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+  admin_service: xhbookstore-admin
+  api_service: xhbookstore-api
+  jvm_opts: -Xmx512m -Xms256m
