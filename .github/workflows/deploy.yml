@@ -36,14 +36,11 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
-          cache: maven
 
       - name: Setup Node ${{ env.NODE_VERSION }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: xhbookstore-ui/package-lock.json
 
       # ---------- 根据环境选择构建命令 ----------
       - name: Determine build target
@@ -64,13 +61,13 @@ jobs:
 
       # ---------- Maven: admin & api ----------
       - name: Build Admin & API JARs
-        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true -q
+        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true
 
       # ---------- npm: ui ----------
       - name: Build UI (${{ steps.env.outputs.npm_cmd }})
         run: |
           cd xhbookstore-ui
-          npm ci
+          npm install
           npm run ${{ steps.env.outputs.npm_cmd }}
 
       - name: Package UI
