@@ -20,6 +20,7 @@ jobs:
   build:
     name: Build All Modules
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     outputs:
       version: ${{ steps.version.outputs.tag }}
     steps:
@@ -42,35 +43,23 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      # ---------- 根据环境选择构建命令 ----------
-      - name: Determine build target
-        id: target
+      - name: Verify toolchain
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            echo "profile=staging" >> $GITHUB_OUTPUT
-            echo "npm_cmd=build:stage" >> $GITHUB_OUTPUT
-          else
-            echo "profile=${{ inputs.environment }}" >> $GITHUB_OUTPUT
-            if [ "${{ inputs.environment }}" = "prod" ]; then
-              echo "npm_cmd=build:prod" >> $GITHUB_OUTPUT
-            else
-              echo "npm_cmd=build:stage" >> $GITHUB_OUTPUT
-            fi
-          fi
-          echo "Deploy target: $(cat $GITHUB_OUTPUT)"
+          java -version
+          mvn --version
+          node --version
+          npm --version
 
       # ---------- Maven: admin & api ----------
       - name: Build Admin & API JARs
-        env:
-          MAVEN_OPTS: "-Xmx1024m -Dfile.encoding=UTF-8"
-        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true --batch-mode --no-transfer-progress
+        run: mvn package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true --batch-mode 2>&1
 
       # ---------- npm: ui ----------
-      - name: Build UI (${{ steps.target.outputs.npm_cmd }})
+      - name: Build UI (staging)
         run: |
           cd xhbookstore-ui
           npm install
-          npm run ${{ steps.target.outputs.npm_cmd }}
+          npm run build:stage
 
       - name: Package UI
         run: cd xhbookstore-ui && zip -r dist.zip dist/
@@ -82,7 +71,6 @@ jobs:
           tag: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.tag }}
           body: |
-            📦 构建环境: **${{ steps.target.outputs.profile }}**
             🔨 触发方式: ${{ github.event_name }}
             📝 提交: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
           files: |
@@ -114,9 +102,7 @@ jobs:
   deploy-staging:
     name: Deploy → Staging (152.136.127.168)
     needs: build
-    if: |
-      github.event_name == 'push' ||
-      (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    if: success()
     runs-on: ubuntu-latest
     environment:
       name: staging
