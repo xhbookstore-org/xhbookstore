@@ -1,6 +1,6 @@
 ---
 name: deploy-admin
-description: Build and deploy the xhbookstore-admin module. Usage: /deploy-admin -d <staging|prod>
+description: Build and deploy xhbookstore-admin JAR with minimal downtime (~5s). Usage: /deploy-admin -d <staging|prod>
 arg-hint: -d <staging|prod>
 ---
 
@@ -14,28 +14,23 @@ arg-hint: -d <staging|prod>
 
 - Java 17, Maven (in PATH), SSH key at `~/.ssh/id_ed25519_deploy`
 
-## Workflow
+## Workflow (build first, stop last)
 
 ### 1. Load Config
-Read `.claude/skills/servers.yml` → resolve IP, jar path, service name, JVM opts, profile.
+Read `.claude/skills/servers.yml` → IP, jar_path, service name, profile.
 
-### 2. Build
-From the project root (`git rev-parse --show-toplevel`):
+### 2. Build & Upload (service still running)
 ```bash
+cd $(git rev-parse --show-toplevel)
 mvn clean package -pl xhbookstore-admin -am -Dmaven.test.skip=true -q
-```
-JAR is at: `xhbookstore-admin/target/xhbookstore-admin.jar`
-
-### 3. Upload
-```bash
-scp -i ~/.ssh/id_ed25519_deploy xhbookstore-admin/target/xhbookstore-admin.jar <user>@<ip>:<jar_path>/xhbookstore-admin.jar
+scp xhbookstore-admin/target/xhbookstore-admin.jar <user>@<ip>:<jar_path>/xhbookstore-admin.jar.tmp
 ```
 
-### 4. Deploy
+### 3. Atomic Swap (~5s downtime)
 ```bash
-ssh -i ~/.ssh/id_ed25519_deploy <user>@<ip> "
+ssh <user>@<ip> "
   systemctl stop <service>
-  cp <jar_path>/xhbookstore-admin.jar <jar_path>/xhbookstore-admin.jar.bak
+  mv <jar_path>/xhbookstore-admin.jar.tmp <jar_path>/xhbookstore-admin.jar
   systemctl start <service>
   sleep 4
   systemctl is-active <service>
@@ -43,5 +38,5 @@ ssh -i ~/.ssh/id_ed25519_deploy <user>@<ip> "
 "
 ```
 
-### 5. Report
-Build → Upload → Deploy → Health check result.
+### 4. Report
+Build → Upload → Stop+Swap+Start → Health.

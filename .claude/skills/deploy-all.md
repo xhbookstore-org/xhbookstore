@@ -1,77 +1,72 @@
 ---
 name: deploy-all
-description: One-click deploy all modules (admin + api + ui) to server. Usage: /deploy-all -d <staging|prod>
+description: One-click deploy all modules (admin + api + ui) to server with minimal downtime. Usage: /deploy-all -d <staging|prod>
 arg-hint: -d <staging|prod>
 ---
 
-# Deploy All Modules
+# Deploy All Modules (Minimal Downtime)
 
-Build and deploy all three modules (admin, api, ui) to the target server in one pass.
+Build and deploy all three modules. **Services stay running during build/upload — only stopped for the ~10s replace+restart.**
 
 ## Parameters
 
 - `-d <env>` — `staging` → 152.136.127.168, `prod` → production server.
-  - If `-d` is omitted, ask the user.
 
-## Prerequisites (any OS — macOS / Windows / Linux)
+## Prerequisites
 
-- **Java 17** — `java --version`
-- **Maven** — `mvn --version` (must be in PATH)
-- **Node.js** — `node --version`
-- **SSH key** — `~/.ssh/id_ed25519_deploy` must exist
+- Java 17, Maven (in PATH), Node.js, SSH key at `~/.ssh/id_ed25519_deploy`
 
 ## Workflow
 
 ### Step 1: Load Config
 
-Read `.claude/skills/servers.yml`, resolve `<env>` → IP, paths, etc.
+Read `.claude/skills/servers.yml` → resolve IP, paths, etc.
 
-### Step 2: Detect OS and Set Commands
+### Step 2: Build (services still running!)
 
-- **Project root**: use the current git repo root (`git rev-parse --show-toplevel`)
-- **Maven**: use `mvn` from PATH (assume user has it configured)
-- **Zip**: on Windows use PowerShell `Compress-Archive`, on macOS/Linux use `zip -r`
-- All project-relative paths are the same on all platforms (e.g. `xhbookstore-admin/target/...`)
-
-### Step 3: Build
-
-From the project root:
-
+From project root:
 ```bash
-# Build both JARs in one command (Maven handles dependency order)
+# Build both JARs
 mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true -q
 
-# Build UI (env-aware)
+# Build UI
 cd xhbookstore-ui
-npm run build:stage   # for staging
-npm run build:prod    # for prod
+npm run build:stage   # or build:prod
+# Package dist (OS-aware: macOS/Linux use 'zip -r', Windows use Compress-Archive)
 ```
 
-Zip the dist folder using the OS-appropriate command.
+### Step 3: Upload (services still running!)
 
-### Step 4: Upload
-
+Upload to tmp locations so live files are untouched:
 ```bash
-scp -i ~/.ssh/id_ed25519_deploy xhbookstore-admin/target/xhbookstore-admin.jar <user>@<ip>:<jar_path>/xhbookstore-admin.jar
-scp -i ~/.ssh/id_ed25519_deploy xhbookstore-api/target/xhbookstore-api.jar <user>@<ip>:<jar_path>/xhbookstore-api.jar
-scp -i ~/.ssh/id_ed25519_deploy xhbookstore-ui/dist.zip <user>@<ip>:/tmp/dist.zip
+scp xhbookstore-admin/target/xhbookstore-admin.jar <user>@<ip>:<jar_path>/xhbookstore-admin.jar.tmp
+scp xhbookstore-api/target/xhbookstore-api.jar <user>@<ip>:<jar_path>/xhbookstore-api.jar.tmp
+scp xhbookstore-ui/dist.zip <user>@<ip>:/tmp/dist.zip
 ```
 
-### Step 5: Deploy on Server
+### Step 4: Atomic Swap (downtime: ~10s)
 
+One SSH call, minimal gap between stop and start:
 ```bash
-ssh -i ~/.ssh/id_ed25519_deploy <user>@<ip> "
+ssh <user>@<ip> "
+  # Stop (downtime starts)
   systemctl stop xhbookstore-admin xhbookstore-api
-  cp <jar_path>/xhbookstore-admin.jar <jar_path>/xhbookstore-admin.jar.bak
-  cp <jar_path>/xhbookstore-api.jar <jar_path>/xhbookstore-api.jar.bak
+
+  # Swap JARs atomically (mv is instant)
+  mv <jar_path>/xhbookstore-admin.jar.tmp <jar_path>/xhbookstore-admin.jar
+  mv <jar_path>/xhbookstore-api.jar.tmp <jar_path>/xhbookstore-api.jar
+
+  # Swap UI
   cd <ui_path>
-  tar -czf /tmp/xhbookstore-ui-backup-\$(date +%Y%m%d_%H%M%S).tar.gz .
   rm -rf * .[!.]*
   unzip -oq /tmp/dist.zip -d .
   rm -f /tmp/dist.zip
+
+  # Start (downtime ends)
   systemctl start xhbookstore-admin xhbookstore-api
   sleep 5
-  echo '--- Health ---'
+
+  # Health check
   systemctl is-active xhbookstore-admin xhbookstore-api
   curl -s -o /dev/null -w 'UI: %{http_code}\n' http://127.0.0.1/
   curl -s -o /dev/null -w 'Admin: %{http_code}\n' http://127.0.0.1:8090/
@@ -79,7 +74,7 @@ ssh -i ~/.ssh/id_ed25519_deploy <user>@<ip> "
 "
 ```
 
-### Step 6: Report
+### Step 5: Report
 
 | Module | Build | Upload | Deploy | Health |
 |--------|-------|--------|--------|--------|
