@@ -57,11 +57,17 @@ public class AuthController {
         }
 
         // 分别查询会员表和员工表
-        Member member = memberMapper.selectMemberByPhone(phone);
-        SysUser staff = sysUserMapper.selectUserByPhonenumber(phone);
+        Member member = memberMapper.selectMemberByPhone(phone);  // SQL 已过滤 status=0
+        SysUser staff = sysUserMapper.selectUserByPhonenumber(phone); // SQL 已过滤 status='0' del_flag='0'
+
+        // 二次校验：会员状态必须为正常(0)，排除注销(1)和挂失(2)
+        if (member != null && member.getStatus() != null && member.getStatus() != 0) {
+            log.warn("[登录拒绝] phone={}, memberId={}, status={} (非正常状态)", maskPhone(phone), member.getId(), member.getStatus());
+            member = null;
+        }
 
         boolean isMember = member != null;
-        boolean isStaff = staff != null; // selectUserByPhonenumber 已过滤 status='0' del_flag='0'
+        boolean isStaff = staff != null;
 
         // 生成唯一 userId：优先用 memberId，其次 staffId，否则 UUID
         String userId;

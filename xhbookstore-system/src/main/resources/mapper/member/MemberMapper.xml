@@ -36,31 +36,35 @@
 
     <select id="selectMemberList" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">
         <include refid="selectMemberVo"/>
-        where m.status != 1
-        <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
-        <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
-        <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
-        <if test="params.beginTime != null and params.beginTime != ''">
-            and date_format(m.created_at,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
-        </if>
-        <if test="params.endTime != null and params.endTime != ''">
-            and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
-        </if>
+        <where>
+            <if test="status != null">and m.status = #{status}</if>
+            <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
+            <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
+            <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and date_format(m.created_at,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+            </if>
+        </where>
         order by m.created_at desc
     </select>
 
     <select id="selectMemberListForExport" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">
         <include refid="selectMemberVo"/>
-        where m.status != 1
-        <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
-        <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
-        <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
-        <if test="params.beginTime != null and params.beginTime != ''">
-            and date_format(m.created_at,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
-        </if>
-        <if test="params.endTime != null and params.endTime != ''">
-            and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
-        </if>
+        <where>
+            <if test="status != null">and m.status = #{status}</if>
+            <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
+            <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
+            <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and date_format(m.created_at,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+            </if>
+        </where>
         order by m.created_at desc
     </select>
 
@@ -76,7 +80,7 @@
 
     <select id="selectMemberByPhone" parameterType="String" resultMap="MemberResult">
         <include refid="selectMemberVo"/>
-        where m.phone = #{phone} and m.status != 1 limit 1
+        where m.phone = #{phone} and m.status = 0 limit 1
     </select>
 
     <select id="selectMemberByCardNo" parameterType="String" resultMap="MemberResult">
