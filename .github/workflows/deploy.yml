@@ -61,7 +61,9 @@ jobs:
 
       # ---------- Maven: admin & api ----------
       - name: Build Admin & API JARs
-        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true
+        env:
+          MAVEN_OPTS: "-Xmx1024m -Dfile.encoding=UTF-8"
+        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true --batch-mode --no-transfer-progress
 
       # ---------- npm: ui ----------
       - name: Build UI (${{ steps.env.outputs.npm_cmd }})
