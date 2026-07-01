@@ -160,8 +160,8 @@ public class StaffController {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择要还的图书");
         }
 
-        String staffId = (String) request.getAttribute("userId");
-        if (staffId == null) staffId = "system";
+        Object staffUserIdAttr = request.getAttribute("staffUserId");
+        String staffId = staffUserIdAttr != null ? String.valueOf(staffUserIdAttr) : "system";
         String staffName = "员工";
 
         com.xhbookstore.common.core.domain.AjaxResult result = bookBorrowService.returnBook(
@@ -232,8 +232,8 @@ public class StaffController {
             throw new ApiException(ApiErrorCode.BORROW_BOOK_REQUIRED);
         }
 
-        String staffId = (String) request.getAttribute("userId");
-        if (staffId == null) staffId = "system";
+        Object staffUserIdAttr = request.getAttribute("staffUserId");
+        String staffId = staffUserIdAttr != null ? String.valueOf(staffUserIdAttr) : "system";
         String staffName = "员工";
         String remark = (String) body.get("remark");
         Object imageUrlsObj = body.get("imageUrls");
@@ -310,8 +310,8 @@ public class StaffController {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "积分必须为正整数");
         }
 
-        String operator = (String) request.getAttribute("userId");
-        if (operator == null) operator = "system";
+        Object staffUserIdAttr = request.getAttribute("staffUserId");
+        String operator = staffUserIdAttr != null ? String.valueOf(staffUserIdAttr) : "system";
 
         // 调用积分服务（内部有悲观锁+事务保证原子性）
         com.xhbookstore.common.core.domain.AjaxResult result = pointsService.addPoints(

@@ -138,6 +138,15 @@ public interface SysUserMapper
     public SysUser checkPhoneUnique(String phonenumber);
 
     /**
+     * 通过手机号码查询在职员工
+     * 仅返回 status='0' 且 del_flag='0' 的有效员工
+     *
+     * @param phonenumber 手机号码
+     * @return 员工对象（无结果返回 null）
+     */
+    public SysUser selectUserByPhonenumber(String phonenumber);
+
+    /**
      * 校验email是否唯一
      *
      * @param email 用户邮箱

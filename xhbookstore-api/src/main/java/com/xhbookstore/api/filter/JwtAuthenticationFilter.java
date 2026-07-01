@@ -74,8 +74,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .getBody();
             // 将用户信息存入request，供Controller使用
             request.setAttribute("userId", claims.getSubject());
+            request.setAttribute("isMember", claims.get("isMember"));
             request.setAttribute("isStaff", claims.get("isStaff"));
             request.setAttribute("memberId", claims.get("memberId"));
+            request.setAttribute("staffUserId", claims.get("staffUserId"));
         } catch (ExpiredJwtException e) {
             log.warn("[Token过期] uri={}", uri);
             writeUnauthorized(response, ApiErrorCode.AUTH_TOKEN_EXPIRED, "登录已过期，请重新登录");
