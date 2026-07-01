@@ -44,7 +44,7 @@ jobs:
 
       # ---------- 根据环境选择构建命令 ----------
       - name: Determine build target
-        id: env
+        id: target
         run: |
           if [ "${{ github.event_name }}" = "push" ]; then
             echo "profile=staging" >> $GITHUB_OUTPUT
@@ -57,7 +57,7 @@ jobs:
               echo "npm_cmd=build:stage" >> $GITHUB_OUTPUT
             fi
           fi
-          echo "Deploy target: ${{ steps.env.outputs.profile }}"
+          echo "Deploy target: $(cat $GITHUB_OUTPUT)"
 
       # ---------- Maven: admin & api ----------
       - name: Build Admin & API JARs
@@ -66,11 +66,11 @@ jobs:
         run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true --batch-mode --no-transfer-progress
 
       # ---------- npm: ui ----------
-      - name: Build UI (${{ steps.env.outputs.npm_cmd }})
+      - name: Build UI (${{ steps.target.outputs.npm_cmd }})
         run: |
           cd xhbookstore-ui
           npm install
-          npm run ${{ steps.env.outputs.npm_cmd }}
+          npm run ${{ steps.target.outputs.npm_cmd }}
 
       - name: Package UI
         run: cd xhbookstore-ui && zip -r dist.zip dist/
@@ -82,7 +82,7 @@ jobs:
           tag: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.tag }}
           body: |
-            📦 构建环境: **${{ steps.env.outputs.profile }}**
+            📦 构建环境: **${{ steps.target.outputs.profile }}**
             🔨 触发方式: ${{ github.event_name }}
             📝 提交: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
           files: |
