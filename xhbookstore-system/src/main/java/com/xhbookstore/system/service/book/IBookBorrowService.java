@@ -10,7 +10,7 @@ import com.xhbookstore.system.domain.book.BookReturnDetail;
 public interface IBookBorrowService {
     /** 创建借书单（含明细），事务保证 */
     AjaxResult createBorrowOrder(Integer memberId, List<Map<String, Object>> books, String remark,
-                                  String staffId, String staffName, Long deptId);
+                                  String staffId, String staffName, Long deptId, List<String> imageUrls);
 
     /** 还书，事务保证原子性 */
     AjaxResult returnBook(String borrowOrderNo, List<Map<String, Object>> returnItems,

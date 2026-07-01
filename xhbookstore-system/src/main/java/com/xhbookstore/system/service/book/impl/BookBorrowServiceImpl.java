@@ -9,6 +9,7 @@ import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.book.*;
 import com.xhbookstore.system.mapper.member.MemberMapper;
+import com.xhbookstore.system.domain.book.BookBorrowDetailImage;
 import com.xhbookstore.system.mapper.book.*;
 import com.xhbookstore.system.service.book.IBookBorrowService;
 
@@ -18,12 +19,14 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     @Autowired private BookBorrowOrderMapper orderMapper;
     @Autowired private BookBorrowDetailMapper detailMapper;
     @Autowired private BookReturnDetailMapper returnMapper;
+    @Autowired private BookBorrowDetailImageMapper detailImageMapper;
     @Autowired private MemberMapper memberMapper;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AjaxResult createBorrowOrder(Integer memberId, List<Map<String, Object>> books,
-                                         String remark, String staffId, String staffName, Long deptId) {
+                                         String remark, String staffId, String staffName, Long deptId,
+                                         List<String> imageUrls) {
         Member member = memberMapper.selectMemberById(memberId);
         if (member == null) return AjaxResult.error("会员不存在");
         if (books == null || books.isEmpty()) return AjaxResult.error("至少需要一本图书");
@@ -73,10 +76,28 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             detailMapper.insert(detail);
         }
 
+        // 插入图片（关联借书单）
+        if (imageUrls != null && !imageUrls.isEmpty()) {
+            int sort = 1;
+            for (String url : imageUrls) {
+                if (url == null || url.trim().isEmpty()) continue;
+                BookBorrowDetailImage img = new BookBorrowDetailImage();
+                img.setBorrowOrderId(order.getId());
+                img.setBorrowOrderNo(orderNo);
+                img.setImageUrl(url.trim());
+                img.setImageType(1); // 1-借书拍摄
+                img.setSortOrder(sort++);
+                img.setCreateStaffId(staffId);
+                img.setCreateStaffName(staffName);
+                detailImageMapper.insert(img);
+            }
+        }
+
         Map<String, Object> data = new HashMap<>();
         data.put("orderNo", orderNo);
         data.put("totalBookCount", totalQty);
         data.put("detailCount", details.size());
+        data.put("imageCount", imageUrls != null ? imageUrls.size() : 0);
         return AjaxResult.success("借书成功", data);
     }
 

@@ -236,9 +236,15 @@ public class StaffController {
         if (staffId == null) staffId = "system";
         String staffName = "员工";
         String remark = (String) body.get("remark");
+        Object imageUrlsObj = body.get("imageUrls");
+        List<String> imageUrls = null;
+        if (imageUrlsObj instanceof List) {
+            imageUrls = ((List<?>) imageUrlsObj).stream()
+                    .map(Object::toString).collect(java.util.stream.Collectors.toList());
+        }
 
         com.xhbookstore.common.core.domain.AjaxResult result = bookBorrowService.createBorrowOrder(
-                Integer.parseInt(memberId), books, remark, staffId, staffName, null);
+                Integer.parseInt(memberId), books, remark, staffId, staffName, null, imageUrls);
 
         if (result.isError()) {
             throw new ApiException(ApiErrorCode.BORROW_DENIED, (String) result.get("msg"));

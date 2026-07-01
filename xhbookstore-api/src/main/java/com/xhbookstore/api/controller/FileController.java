@@ -21,7 +21,7 @@ import com.xhbookstore.system.mapper.book.BookBorrowDetailImageMapper;
 @RequestMapping("/api/mp/v1/files")
 public class FileController {
 
-    private static final long MAX_FILE_SIZE = 10 * 1024 * 1024L; // 10MB
+    private static final long MAX_FILE_SIZE = 2 * 1024 * 1024L; // 2MB
 
     @Autowired
     private ICosService cosService;
