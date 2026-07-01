@@ -1,0 +1,184 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        type: choice
+        options: [staging, prod]
+        default: staging
+
+env:
+  JAVA_VERSION: '17'
+  NODE_VERSION: '18'
+
+jobs:
+  # ======================== Build ========================
+  build:
+    name: Build All Modules
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate version tag
+        id: version
+        run: |
+          TS=$(date +%Y%m%d_%H%M%S)
+          echo "tag=v${TS}_r${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: xhbookstore-ui/package-lock.json
+
+      # ---------- 根据环境选择构建命令 ----------
+      - name: Determine build target
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "profile=staging" >> $GITHUB_OUTPUT
+            echo "npm_cmd=build:stage" >> $GITHUB_OUTPUT
+          else
+            echo "profile=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            if [ "${{ inputs.environment }}" = "prod" ]; then
+              echo "npm_cmd=build:prod" >> $GITHUB_OUTPUT
+            else
+              echo "npm_cmd=build:stage" >> $GITHUB_OUTPUT
+            fi
+          fi
+          echo "Deploy target: ${{ steps.env.outputs.profile }}"
+
+      # ---------- Maven: admin & api ----------
+      - name: Build Admin & API JARs
+        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true -q
+
+      # ---------- npm: ui ----------
+      - name: Build UI (${{ steps.env.outputs.npm_cmd }})
+        run: |
+          cd xhbookstore-ui
+          npm ci
+          npm run ${{ steps.env.outputs.npm_cmd }}
+
+      - name: Package UI
+        run: cd xhbookstore-ui && zip -r dist.zip dist/
+
+      # ---------- Publish Release ----------
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          body: |
+            📦 构建环境: **${{ steps.env.outputs.profile }}**
+            🔨 触发方式: ${{ github.event_name }}
+            📝 提交: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+          files: |
+            xhbookstore-admin/target/xhbookstore-admin.jar
+            xhbookstore-api/target/xhbookstore-api.jar
+            xhbookstore-ui/dist.zip
+          fail_on_unmatched_files: false
+
+      # ---------- Artifacts (for deploy jobs) ----------
+      - name: Upload admin JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-jar
+          path: xhbookstore-admin/target/xhbookstore-admin.jar
+
+      - name: Upload api JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-jar
+          path: xhbookstore-api/target/xhbookstore-api.jar
+
+      - name: Upload UI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-zip
+          path: xhbookstore-ui/dist.zip
+
+  # ======================== Deploy Staging ========================
+  deploy-staging:
+    name: Deploy → Staging (152.136.127.168)
+    needs: build
+    if: |
+      github.event_name == 'push' ||
+      (github.event_name == 'workflow_dispatch' && inputs.environment == 'staging')
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: http://152.136.127.168
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: SCP upload to server
+        uses: appleboy/scp-action@v0
+        with:
+          host: 152.136.127.168
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "admin-jar/xhbookstore-admin.jar,api-jar/xhbookstore-api.jar,ui-zip/dist.zip"
+          target: /tmp/deploy/
+          strip_components: 1
+          rm: true
+
+      - name: Apply deployment (versioned)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 152.136.127.168
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: DEPLOY_ENV
+          script: |
+            export DEPLOY_ENV=staging
+            bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
+
+  # ======================== Deploy Prod ========================
+  deploy-prod:
+    name: Deploy → Prod
+    needs: build
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+      url: http://<prod-server>
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: SCP upload to prod server
+        uses: appleboy/scp-action@v0
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "admin-jar/xhbookstore-admin.jar,api-jar/xhbookstore-api.jar,ui-zip/dist.zip"
+          target: /tmp/deploy/
+          strip_components: 1
+          rm: true
+
+      - name: Apply deployment (versioned)
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: DEPLOY_ENV
+          script: |
+            export DEPLOY_ENV=prod
+            bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
