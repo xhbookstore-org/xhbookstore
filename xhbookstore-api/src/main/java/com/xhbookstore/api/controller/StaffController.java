@@ -14,6 +14,7 @@ import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.MemberCardLog;
 import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.domain.book.*;
+import com.xhbookstore.system.mapper.SysUserMapper;
 import com.xhbookstore.system.mapper.member.MemberCardLogMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.service.member.ICardTypeService;
@@ -38,6 +39,8 @@ public class StaffController {
     private IBookBorrowService bookBorrowService;
     @Autowired
     private MemberCardLogMapper memberCardLogMapper;
+    @Autowired
+    private SysUserMapper sysUserMapper;
     @Autowired
     private ICardTypeService cardTypeService;
 
@@ -92,6 +95,10 @@ public class StaffController {
         if (cardTypeId == null) {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择会员类型");
         }
+        String memberName = (String) body.get("name");
+        if (memberName == null || memberName.trim().isEmpty()) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "请填写会员姓名");
+        }
         String remark = (String) body.get("remark");
 
         // 1. 查卡类型
@@ -139,13 +146,23 @@ public class StaffController {
         }
         newValidDate = cal.getTime();
 
-        // 6. 更新会员
+        // 6. 更新会员（含姓名）
+        member.setName(memberName);
         member.setValidDate(newValidDate);
         member.setStatus(0);
         member.setLastOperator(getOperatorFromRequest(request));
         memberMapper.updateMember(member);
 
-        // 7. 写日志
+        // 7. 查操作人真实姓名
+        Object staffIdAttr = request.getAttribute("staffUserId");
+        String operatorId = staffIdAttr != null ? String.valueOf(staffIdAttr) : "system";
+        String operatorName = operatorId;
+        if (staffIdAttr != null) {
+            com.xhbookstore.common.core.domain.entity.SysUser staffUser = sysUserMapper.selectUserById(Long.valueOf(operatorId));
+            if (staffUser != null) operatorName = staffUser.getNickName();
+        }
+
+        // 8. 写日志
         MemberCardLog log = new MemberCardLog();
         log.setMemberId(member.getId());
         log.setMemberNo(member.getCardNo());
@@ -154,9 +171,8 @@ public class StaffController {
         log.setBeforeValidDate(beforeValidDate instanceof java.sql.Date ? null : beforeValidDate);
         log.setAfterCardType(cardTypeName);
         log.setAfterValidDate(newValidDate);
-        Object staffIdAttr = request.getAttribute("staffUserId");
-        log.setOperatorId(staffIdAttr != null ? String.valueOf(staffIdAttr) : "system");
-        log.setOperatorName("员工");
+        log.setOperatorId(operatorId);
+        log.setOperatorName(operatorName);
         log.setDevice("小程序");
         log.setRemark(remark);
         memberCardLogMapper.insert(log);
