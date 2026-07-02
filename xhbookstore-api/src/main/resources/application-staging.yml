@@ -42,10 +42,10 @@ wechat:
   token-expire-seconds: 7200
   token-refresh-ahead: 300
 
-# 腾讯云COS（测试环境 — 密钥通过环境变量注入）
+# 腾讯云COS（测试环境）
 cos:
-  secret-id: ${COS_SECRET_ID:test-secret-id}
-  secret-key: ${COS_SECRET_KEY:test-secret-key}
+  secret-id: ${COS_SECRET_ID}
+  secret-key: ${COS_SECRET_KEY}
   region: ap-beijing
   bucket: myfirst-1445566426
   base-url: https://myfirst-1445566426.cos.ap-beijing.lighthouse.tencentcos.cn
