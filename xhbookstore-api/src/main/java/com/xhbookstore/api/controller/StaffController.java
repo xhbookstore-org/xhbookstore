@@ -9,14 +9,14 @@ import com.xhbookstore.api.constant.ApiErrorCode;
 import com.xhbookstore.api.exception.ApiException;
 import com.xhbookstore.api.model.ApiResponse;
 import com.xhbookstore.api.model.PageResult;
-import com.xhbookstore.common.core.domain.entity.SysDictData;
+import com.xhbookstore.system.domain.member.CardType;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.MemberCardLog;
 import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.domain.book.*;
-import com.xhbookstore.system.mapper.SysDictDataMapper;
 import com.xhbookstore.system.mapper.member.MemberCardLogMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
+import com.xhbookstore.system.service.member.ICardTypeService;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
 import com.xhbookstore.system.service.book.IBookBorrowService;
@@ -39,7 +39,7 @@ public class StaffController {
     @Autowired
     private MemberCardLogMapper memberCardLogMapper;
     @Autowired
-    private SysDictDataMapper dictDataMapper;
+    private ICardTypeService cardTypeService;
 
     /**
      * 查询员工首页 §12.1
@@ -54,21 +54,24 @@ public class StaffController {
     }
 
     /**
-     * 查询会员类型列表 — 数据源: sys_dict_data (dict_type='sys_member_type')
-     * 用于开卡/续费时选择会员类型
+     * 查询会员类型列表 — 数据源: util_card_type
      */
     @GetMapping("/card-types")
     public ApiResponse<Map<String, Object>> cardTypes() {
-        List<SysDictData> dictList = dictDataMapper.selectDictDataByType("sys_member_type");
+        List<CardType> list = cardTypeService.selectAll();
         List<Map<String, Object>> items = new ArrayList<>();
-        for (SysDictData dd : dictList) {
+        for (CardType ct : list) {
             Map<String, Object> item = new HashMap<>();
-            item.put("dictCode", dd.getDictCode());       // 字典编码
-            item.put("dictValue", dd.getDictValue());     // 类型值: 1=普通 10=年卡 20=半年卡 30=续费年卡 40=续费半年卡
-            item.put("dictLabel", dd.getDictLabel());     // 显示名: 年卡会员/半年卡会员...
-            item.put("dictSort", dd.getDictSort());       // 排序
-            item.put("remark", dd.getRemark());           // 备注: 有效期计算规则
-            item.put("status", dd.getStatus());
+            item.put("id", ct.getId());
+            item.put("typeName", ct.getTypeName());
+            item.put("price", ct.getPrice());
+            item.put("validDays", ct.getValidDays());
+            item.put("borrowLimit", ct.getBorrowLimit());
+            item.put("discount", ct.getDiscount());
+            item.put("isRenewal", ct.getIsRenewal() != null && ct.getIsRenewal() == 1);
+            item.put("description", ct.getDescription());
+            item.put("sort", ct.getSort());
+            item.put("status", ct.getStatus());
             items.add(item);
         }
         Map<String, Object> data = new HashMap<>();
@@ -76,22 +79,8 @@ public class StaffController {
         return ApiResponse.success(data);
     }
 
-    /** 从 dictValue 推断有效天数: 10→365, 20→180, 30→365, 40→180 */
-    private int getValidDays(String dictValue) {
-        int v = Integer.parseInt(dictValue);
-        return (v == 10 || v == 30) ? 365 : 180;
-    }
-
-    /** 从 dictValue 推断是否续费: ≥30 为续费类型 */
-    private boolean isRenewalType(String dictValue) {
-        return Integer.parseInt(dictValue) >= 30;
-    }
-
     /**
-     * 开通/续费会员卡 — 新卡从今天算有效期，续费在原到期日叠加
-     */
-    /**
-     * 开通/续费会员卡 — 参数 dictValue (来自字典 sys_member_type)
+     * 开通/续费会员卡 — 参数 cardTypeId，数据源 util_card_type
      */
     @PostMapping("/members/{memberId}/activate-card")
     public ApiResponse<Map<String, Object>> activateCard(
@@ -99,25 +88,25 @@ public class StaffController {
             @RequestBody Map<String, Object> body,
             HttpServletRequest request) {
 
-        String dictValue = body.get("dictValue") != null ? body.get("dictValue").toString() : null;
-        if (dictValue == null || dictValue.isEmpty()) {
+        Integer cardTypeId = body.get("cardTypeId") != null ? Integer.valueOf(body.get("cardTypeId").toString()) : null;
+        if (cardTypeId == null) {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择会员类型");
         }
         String remark = (String) body.get("remark");
 
-        // 1. 查字典确认类型有效
-        List<SysDictData> dictList = dictDataMapper.selectDictDataByType("sys_member_type");
-        SysDictData dictData = dictList.stream()
-                .filter(d -> dictValue.equals(d.getDictValue()) && "0".equals(d.getStatus()))
-                .findFirst().orElse(null);
-        if (dictData == null) {
+        // 1. 查卡类型
+        CardType cardType = cardTypeService.selectById(cardTypeId);
+        if (cardType == null || cardType.getStatus() != null && cardType.getStatus() != 0) {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "无效的会员类型");
         }
+        if (cardType.getIsDel() != null && cardType.getIsDel() == 1) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "该会员类型已删除");
+        }
 
-        // 2. 从 dictValue 推断业务参数
-        String cardTypeName = dictData.getDictLabel();
-        int validDays = getValidDays(dictValue);
-        boolean isRenewal = isRenewalType(dictValue);
+        // 2. 业务参数直接从表字段获取
+        String cardTypeName = cardType.getTypeName();
+        int validDays = cardType.getValidDays();
+        boolean isRenewal = cardType.getIsRenewal() != null && cardType.getIsRenewal() == 1;
 
         // 3. 悲观锁查会员
         Member member = memberMapper.selectMemberByIdForUpdate(Integer.parseInt(memberId));
@@ -178,7 +167,7 @@ public class StaffController {
         data.put("success", true);
         data.put("memberId", member.getId());
         data.put("memberNo", member.getCardNo());
-        data.put("dictValue", dictValue);
+        data.put("cardTypeId", cardTypeId);
         data.put("cardTypeName", cardTypeName);
         data.put("operationType", operationType);
         data.put("validDate", newValidDate);

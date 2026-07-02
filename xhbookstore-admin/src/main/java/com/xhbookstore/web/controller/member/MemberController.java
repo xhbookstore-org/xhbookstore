@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.*;
 import com.xhbookstore.common.core.controller.BaseController;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.common.core.page.TableDataInfo;
-import com.xhbookstore.common.core.domain.entity.SysDictData;
+import com.xhbookstore.system.domain.member.CardType;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.MemberExt;
 import com.xhbookstore.system.domain.member.PointsOrder;
-import com.xhbookstore.system.mapper.SysDictDataMapper;
+import com.xhbookstore.system.mapper.member.CardTypeMapper;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
 
@@ -20,7 +20,7 @@ import com.xhbookstore.system.service.member.IPointsService;
 public class MemberController extends BaseController {
 
     @Autowired private IMemberService memberService;
-    @Autowired private SysDictDataMapper dictDataMapper;
+    @Autowired private CardTypeMapper cardTypeMapper;
     @Autowired private IPointsService pointsService;
 
     @GetMapping("/list")
@@ -70,7 +70,8 @@ public class MemberController extends BaseController {
 
     @GetMapping("/cardTypes")
     public AjaxResult cardTypes() {
-        List<SysDictData> list = dictDataMapper.selectDictDataByType("sys_member_type");
+        // 数据源改为 util_card_type（筛选 is_del=0）
+        List<CardType> list = cardTypeMapper.selectAll();
         return AjaxResult.success(list);
     }
 
