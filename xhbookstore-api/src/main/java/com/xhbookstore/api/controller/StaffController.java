@@ -3,6 +3,8 @@ package com.xhbookstore.api.controller;
 import java.util.*;
 import java.util.stream.Collectors;
 import jakarta.servlet.http.HttpServletRequest;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import com.xhbookstore.api.constant.ApiErrorCode;
@@ -25,6 +27,7 @@ import com.xhbookstore.system.service.book.IBookBorrowService;
 /**
  * 员工端接口 - 文档 §12
  */
+@Tag(name = "员工端接口", description = "员工首页、扫码、会员概要、借阅、还书、积分、开卡")
 @RestController
 @RequestMapping("/api/mp/v1/staff")
 public class StaffController {
@@ -44,9 +47,7 @@ public class StaffController {
     @Autowired
     private ICardTypeService cardTypeService;
 
-    /**
-     * 查询员工首页 §12.1
-     */
+    @Operation(summary = "查询员工首页", description = "返回门店名称、今日门店借阅量、今日个人借阅量")
     @GetMapping("/home")
     public ApiResponse<Map<String, Object>> home() {
         Map<String, Object> data = new HashMap<>();
@@ -59,6 +60,7 @@ public class StaffController {
     /**
      * 查询会员类型列表 — 数据源: util_card_type
      */
+    @Operation(summary = "查询会员卡类型列表", description = "返回 util_card_type 表中 is_del=0 的全部卡类型（价格/天数/借阅上限/折扣/续费标记）")
     @GetMapping("/card-types")
     public ApiResponse<Map<String, Object>> cardTypes() {
         List<CardType> list = cardTypeService.selectAll();
@@ -85,6 +87,7 @@ public class StaffController {
     /**
      * 开通/续费会员卡 — 参数 cardTypeId，数据源 util_card_type
      */
+    @Operation(summary = "开通/续费会员卡", description = "新卡从今天算有效期，续费在原到期日叠加。入参: {\"cardTypeId\":1,\"name\":\"张三\",\"remark\":\"\"}")
     @PostMapping("/members/{memberId}/activate-card")
     public ApiResponse<Map<String, Object>> activateCard(
             @PathVariable String memberId,
@@ -200,6 +203,7 @@ public class StaffController {
     /**
      * 解析会员码 §12.2 — 格式: MEMBER:{cardNo}:TIMESTAMP:{ts}
      */
+    @Operation(summary = "解析会员二维码", description = "解析格式 MEMBER:{cardNo}:TIMESTAMP:{ts}，校验30秒有效期，返回对应会员ID")
     @PostMapping("/member-code/scan")
     public ApiResponse<Map<String, Object>> scanMemberCode(@RequestBody Map<String, String> body) {
         String scanResult = body.get("scanResult");
@@ -242,6 +246,7 @@ public class StaffController {
     /**
      * 查询扫码会员概要 §12.3
      */
+    @Operation(summary = "查询扫码会员概要", description = "返回会员基本信息、会员卡信息、操作权限（能否借阅/还书/加减积分）")
     @GetMapping("/members/{memberId}/overview")
     public ApiResponse<Map<String, Object>> memberOverview(@PathVariable String memberId) {
         Member member = memberService.selectMemberById(Integer.parseInt(memberId));
@@ -290,54 +295,55 @@ public class StaffController {
     }
 
     /**
-     * 查询全市借阅列表 §12.4
+     * 查询全市借阅列表 — 单本借阅项扁平返回
      */
+    @Operation(summary = "查询全市借阅列表", description = "每一条记录代表一本书的借阅项，不按借书单分组。状态: 0=在借 1=已还")
     @GetMapping("/borrows")
     public ApiResponse<Map<String, Object>> borrowsList(
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "1") int pageNo,
             @RequestParam(defaultValue = "20") int pageSize) {
-        // TODO: 全市查询需跨member，暂返回空
+        // 全市借阅列表：TODO 跨member查询
         Map<String, Object> data = new HashMap<>();
         data.put("page", new PageResult<>(Collections.emptyList(), pageNo, pageSize, 0));
         return ApiResponse.success(data);
     }
 
     /**
-     * 查询员工侧借阅详情 §12.5
+     * 查询员工侧借阅详情 — 支持明细ID查询单本
      */
+    @Operation(summary = "查询借阅详情（员工端）", description = "borrowId为借书单号(DY开头)，返回该单下所有单本借阅项（扁平列表）。如传入数字则按明细ID查询。")
     @GetMapping("/borrows/{borrowId}")
     public ApiResponse<Map<String, Object>> borrowDetail(@PathVariable String borrowId) {
+        Map<String, Object> data = new HashMap<>();
         BookBorrowOrder order = bookBorrowService.selectOrderByNo(borrowId);
         if (order == null) {
             throw new ApiException(ApiErrorCode.NOT_FOUND, "借书单不存在");
         }
         List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(order.getId());
-        List<BookReturnDetail> returns = bookBorrowService.selectReturnsByOrderId(order.getId());
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("order", order);
-        data.put("details", details);
-        data.put("returns", returns);
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (BookBorrowDetail d : details) items.add(buildFlatItem(order, d));
+        data.put("items", items);
+        data.put("orderNo", order.getOrderNo());
+        data.put("borrowTime", order.getBorrowTime() != null ? order.getBorrowTime().getTime() : null);
         return ApiResponse.success(data);
     }
 
     /**
-     * 办理还书 §12.6
+     * 办理还书 — 支持单本/批量归还，后端保留订单级部分归还
      */
     @SuppressWarnings("unchecked")
+    @Operation(summary = "办理还书", description = "单本或批量还书。支持归还状态: normal/damaged/lost。入参: {\\\"borrowOrderNo\\\":\\\"DY...\\\",\\\"returnItems\\\":[{\\\"borrowDetailId\\\":1,\\\"returnStatus\\\":\\\"normal\\\"}]}")
     @PostMapping("/borrow-returns")
     public ApiResponse<Map<String, Object>> returnBooks(@RequestBody Map<String, Object> body,
                                                          HttpServletRequest request) {
         String borrowOrderNo = (String) body.get("borrowOrderNo");
         List<Map<String, Object>> returnItems = (List<Map<String, Object>>) body.get("returnItems");
-        if (borrowOrderNo == null || borrowOrderNo.isEmpty()) {
+        if (borrowOrderNo == null || borrowOrderNo.isEmpty())
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "缺少借书单号");
-        }
-        if (returnItems == null || returnItems.isEmpty()) {
+        if (returnItems == null || returnItems.isEmpty())
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择要还的图书");
-        }
 
         Object staffUserIdAttr = request.getAttribute("staffUserId");
         String staffId = staffUserIdAttr != null ? String.valueOf(staffUserIdAttr) : "system";
@@ -345,18 +351,17 @@ public class StaffController {
 
         com.xhbookstore.common.core.domain.AjaxResult result = bookBorrowService.returnBook(
                 borrowOrderNo, returnItems, staffId, staffName, null);
-
-        if (result.isError()) {
+        if (result.isError())
             throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED, (String) result.get("msg"));
-        }
         @SuppressWarnings("unchecked")
         Map<String, Object> respData = (Map<String, Object>) result.get("data");
         return ApiResponse.success(respData);
     }
 
     /**
-     * 查询指定会员借阅记录 §12.7
+     * 查询指定会员借阅记录 — 单本扁平返回
      */
+    @Operation(summary = "查询指定会员借阅记录", description = "mode=current 返回未归还的单本借阅项; mode=all 返回全部。不返回订单级部分归还状态")
     @GetMapping("/members/{memberId}/borrows")
     public ApiResponse<Map<String, Object>> memberBorrows(
             @PathVariable String memberId,
@@ -365,24 +370,11 @@ public class StaffController {
             @RequestParam(defaultValue = "1") int pageNo,
             @RequestParam(defaultValue = "20") int pageSize) {
         Member member = memberService.selectMemberById(Integer.parseInt(memberId));
-        if (member == null) {
-            throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
-        }
+        if (member == null) throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
 
         List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(Integer.parseInt(memberId));
-        List<Map<String, Object>> records = new ArrayList<>();
-        for (BookBorrowOrder o : orders) {
-            Map<String, Object> r = new HashMap<>();
-            r.put("orderNo", o.getOrderNo());
-            r.put("totalBookCount", o.getTotalBookCount());
-            r.put("borrowStatus", o.getBorrowStatus());
-            r.put("borrowTime", o.getBorrowTime() != null ? o.getBorrowTime().getTime() : null);
-            r.put("returnAllTime", o.getReturnAllTime() != null ? o.getReturnAllTime().getTime() : null);
-            r.put("remark", o.getRemark());
-            List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
-            r.put("details", details);
-            records.add(r);
-        }
+        String filter = "current".equals(mode) ? "borrowing" : "all";
+        List<Map<String, Object>> flatList = flattenBorrowDetails(orders, null, filter);
 
         Map<String, Object> memberMap = new HashMap<>();
         memberMap.put("memberId", String.valueOf(member.getId()));
@@ -393,14 +385,44 @@ public class StaffController {
 
         Map<String, Object> data = new HashMap<>();
         data.put("member", memberMap);
-        data.put("page", new PageResult<>(records, pageNo, pageSize, records.size()));
+        data.put("page", new PageResult<>(flatList, pageNo, pageSize, flatList.size()));
         return ApiResponse.success(data);
+    }
+
+    /** 将借书单+明细扁平化为单本借阅项列表 */
+    private List<Map<String, Object>> flattenBorrowDetails(List<BookBorrowOrder> orders, String statusFilter, String modeFilter) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        if (orders == null) return list;
+        for (BookBorrowOrder o : orders) {
+            List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
+            for (BookBorrowDetail d : details) {
+                if ("borrowing".equals(modeFilter) && (d.getBorrowStatus() == null || d.getBorrowStatus() >= 2)) continue;
+                list.add(buildFlatItem(o, d));
+            }
+        }
+        return list;
+    }
+
+    /** 构建单本借阅扁平项 */
+    private Map<String, Object> buildFlatItem(BookBorrowOrder o, BookBorrowDetail d) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("detailId", d.getId());              // 借阅明细ID
+        item.put("orderNo", o.getOrderNo());          // 借书单号
+        item.put("memberId", o.getMemberId());        // 会员ID
+        item.put("bookId", d.getBookId());            // 图书ID
+        item.put("bookName", d.getBookName());        // 书名
+        item.put("borrowStatus", d.getBorrowStatus() != null ? d.getBorrowStatus() : 0); // 0=在借 1=已还
+        item.put("borrowTime", d.getBorrowTime() != null ? d.getBorrowTime().getTime() : null);
+        item.put("returnAllTime", o.getReturnAllTime() != null ? o.getReturnAllTime().getTime() : null);
+        item.put("remark", o.getRemark());
+        return item;
     }
 
     /**
      * 办理借阅 §12.8
      */
     @SuppressWarnings("unchecked")
+    @Operation(summary = "办理借阅", description = "为会员创建借书订单。入参: {\"books\":[{\"bookId\":1}],\"remark\":\"\"}")
     @PostMapping("/members/{memberId}/borrows")
     public ApiResponse<Map<String, Object>> borrow(
             @PathVariable String memberId,
@@ -436,6 +458,7 @@ public class StaffController {
     /**
      * 查询积分事项 §12.9
      */
+    @Operation(summary = "查询积分事项列表", description = "按 add/deduct 方向返回可用积分事项")
     @GetMapping("/points-reasons")
     public ApiResponse<Map<String, Object>> pointsReasons(
             @RequestParam String direction,
@@ -463,6 +486,7 @@ public class StaffController {
     /**
      * 增加积分 §12.10 ★ 含悲观锁+事务
      */
+    @Operation(summary = "增加积分", description = "悲观锁+事务保证原子性。入参: {\"reasonId\":\"1\",\"points\":50,\"remark\":\"\"}")
     @PostMapping("/members/{memberId}/points/add")
     public ApiResponse<Map<String, Object>> addPoints(
             @PathVariable String memberId,
@@ -520,6 +544,7 @@ public class StaffController {
     /**
      * 消耗积分 §12.11
      */
+    @Operation(summary = "消耗积分", description = "校验余额后扣减。入参: {\"reasonId\":\"1\",\"points\":10,\"remark\":\"\"}")
     @PostMapping("/members/{memberId}/points/deduct")
     public ApiResponse<Map<String, Object>> deductPoints(
             @PathVariable String memberId,
@@ -569,6 +594,7 @@ public class StaffController {
     /**
      * 查询全市积分列表 §12.12
      */
+    @Operation(summary = "查询全市积分记录列表", description = "支持按手机号/会员ID/方向过滤，分页返回")
     @GetMapping("/points-records")
     public ApiResponse<Map<String, Object>> pointsRecordsList(
             @RequestParam(required = false) String phone,
@@ -605,6 +631,7 @@ public class StaffController {
     /**
      * 查询积分详情 §12.13
      */
+    @Operation(summary = "查询积分详情", description = "按积分记录ID查询单条记录详情")
     @GetMapping("/points-records/{pointsRecordId}")
     public ApiResponse<Map<String, Object>> pointsDetail(@PathVariable String pointsRecordId) {
         Map<String, Object> data = new HashMap<>();

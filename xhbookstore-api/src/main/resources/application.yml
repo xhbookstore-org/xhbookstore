@@ -25,3 +25,15 @@ server:
     context-path: /
   tomcat:
     uri-encoding: UTF-8
+
+# SpringDoc — API 模块接口文档
+springdoc:
+  api-docs:
+    enabled: true
+    path: /api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    urls[0]:
+      name: API接口
+      url: /api-docs

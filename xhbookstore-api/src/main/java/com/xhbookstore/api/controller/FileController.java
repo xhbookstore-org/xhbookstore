@@ -1,6 +1,8 @@
 package com.xhbookstore.api.controller;
 
 import java.util.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -17,6 +19,7 @@ import com.xhbookstore.system.mapper.book.BookBorrowDetailImageMapper;
 /**
  * 文件上传接口 - 腾讯云COS
  */
+@Tag(name = "文件上传", description = "图书图片上传至腾讯云COS")
 @RestController
 @RequestMapping("/api/mp/v1/files")
 public class FileController {
@@ -39,6 +42,7 @@ public class FileController {
      * @param imageType    图片类型：1-借书拍摄 2-还书拍摄 3-损坏记录
      * @param bookId       图书ID（可选，上传图书封面时传入）
      */
+    @Operation(summary = "上传图书附件图片", description = "上传到腾讯云COS，支持借书/还书/封面三种场景。FormData: file+memberId+borrowOrderNo+borrowDetailId+imageType+bookId")
     @PostMapping("/book-attachment-images")
     public ApiResponse<Map<String, Object>> uploadBookImage(
             @RequestParam("file") MultipartFile file,

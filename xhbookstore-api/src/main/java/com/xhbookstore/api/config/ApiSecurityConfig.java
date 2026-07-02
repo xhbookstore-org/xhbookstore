@@ -20,10 +20,11 @@ public class ApiSecurityConfig {
     @Order(1)
     public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
         http
-            .securityMatcher("/api/mp/v1/**")
+            .securityMatcher("/api/mp/v1/**", "/api-docs/**", "/swagger-ui/**")
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers("/api-docs/**", "/swagger-ui/**").permitAll()
                 .requestMatchers("/api/mp/v1/auth/wechat-phone-login").permitAll()
                 .requestMatchers("/api/mp/v1/auth/session").permitAll()
                 .requestMatchers("/api/mp/v1/**").permitAll() // JWT filter handles auth

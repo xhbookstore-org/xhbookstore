@@ -3,6 +3,8 @@ package com.xhbookstore.api.controller;
 import java.util.*;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 import com.xhbookstore.api.model.ApiResponse;
 import com.xhbookstore.api.model.PageResult;
@@ -16,6 +18,7 @@ import com.xhbookstore.system.service.book.IBookBorrowService;
 /**
  * 用户端接口 - 文档 §11
  */
+@Tag(name = "用户端接口", description = "用户首页、会员码、借阅记录、积分记录")
 @RestController
 @RequestMapping("/api/mp/v1/user")
 public class UserController {
@@ -30,6 +33,7 @@ public class UserController {
     /**
      * 查询用户首页 §11.1 — 从Token获取手机号，查会员真实数据
      */
+    @Operation(summary = "查询用户首页", description = "从Token获取手机号和memberId，查member表返回会员卡/积分/借阅概况")
     @GetMapping("/home")
     public ApiResponse<Map<String, Object>> home(HttpServletRequest request) {
         // 从JWT Token中获取手机号
@@ -86,6 +90,7 @@ public class UserController {
     /**
      * 生成动态会员码 §11.2 — 根据当前登录会员生成真实二维码内容
      */
+    @Operation(summary = "生成动态会员码", description = "根据当前登录会员的真实card_no生成二维码内容，30秒过期")
     @PostMapping("/member-code")
     public ApiResponse<Map<String, Object>> generateMemberCode(HttpServletRequest request) {
         // 从Token获取memberId
@@ -115,6 +120,7 @@ public class UserController {
     /**
      * 查询本人借阅记录 §11.3
      */
+    @Operation(summary = "查询本人借阅记录", description = "分页查询当前会员的借阅订单及明细")
     @GetMapping("/borrows")
     public ApiResponse<Map<String, Object>> myBorrows(
             @RequestParam(defaultValue = "1") int pageNo,
@@ -147,6 +153,7 @@ public class UserController {
     /**
      * 查询借阅详情 §11.4
      */
+    @Operation(summary = "查询借阅详情", description = "按借阅单号查询完整订单+明细+还书记录")
     @GetMapping("/borrows/{borrowId}")
     public ApiResponse<Map<String, Object>> borrowDetail(@PathVariable String borrowId) {
         BookBorrowOrder order = bookBorrowService.selectOrderByNo(borrowId);
@@ -163,6 +170,7 @@ public class UserController {
     /**
      * 查询本人积分记录 §11.5
      */
+    @Operation(summary = "查询本人积分记录", description = "分页查询当前会员的积分增减记录（方向/变动量/操作前后值/时间）")
     @GetMapping("/points-records")
     public ApiResponse<Map<String, Object>> myPointsRecords(
             @RequestParam(defaultValue = "1") int pageNo,
@@ -194,6 +202,7 @@ public class UserController {
     /**
      * 查询积分详情 §11.6
      */
+    @Operation(summary = "查询积分详情", description = "按积分记录ID查询单条积分详情")
     @GetMapping("/points-records/{pointsRecordId}")
     public ApiResponse<Map<String, Object>> pointsDetail(@PathVariable String pointsRecordId) {
         Map<String, Object> data = new HashMap<>();
