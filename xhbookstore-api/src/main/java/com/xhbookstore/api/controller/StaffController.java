@@ -150,7 +150,8 @@ public class StaffController {
         }
         newValidDate = cal.getTime();
 
-        // 6. 更新会员（含姓名）
+        // 6. 更新会员
+        member.setCardTypeId(cardTypeId);
         member.setName(memberName);
         member.setValidDate(newValidDate);
         member.setStatus(0);
@@ -196,6 +197,21 @@ public class StaffController {
         data.put("remainingDays", Math.max(0, remainingDays));
         data.put("cardStatus", "active");
         return ApiResponse.success(data);
+    }
+
+    /** 统一构建会员卡信息 */
+    private Map<String, Object> buildMemberCard(Member m) {
+        Map<String, Object> card = new HashMap<>();
+        card.put("cardTypeId", m.getCardTypeId());
+        card.put("cardTypeName", m.getCardTypeName());
+        card.put("memberNo", m.getCardNo());
+        card.put("cardStatus", m.getStatus() != null && m.getStatus() == 0 ? "active" : "inactive");
+        card.put("level", m.getLevelId());
+        card.put("remainingDays", m.getValidDate() != null
+                ? Math.max(0, (m.getValidDate().getTime() - System.currentTimeMillis()) / 86400000L) : 0);
+        card.put("effectiveAt", m.getCreatedAt() != null ? m.getCreatedAt().getTime() : null);
+        card.put("expiredAt", m.getValidDate() != null ? m.getValidDate().getTime() : null);
+        return card;
     }
 
     private String getOperatorFromRequest(HttpServletRequest request) {
@@ -264,32 +280,36 @@ public class StaffController {
         memberMap.put("memberName", member.getName());
         memberMap.put("phoneDisplay", maskPhone(member.getPhone()));
         memberMap.put("currentPoints", member.getCurrentPoints());
-        memberMap.put("currentBorrowingCount", 0);
-        memberMap.put("yearBorrowCount", 0);
+        // 真实借阅数量统计
+        List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(member.getId());
+        int currentBorrowingCount = 0;
+        if (orders != null) {
+            for (BookBorrowOrder o : orders) {
+                List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
+                if (details != null) {
+                    for (BookBorrowDetail d : details) {
+                        if (d.getBorrowStatus() != null && d.getBorrowStatus() == 0) currentBorrowingCount++;
+                    }
+                }
+            }
+        }
+        memberMap.put("currentBorrowingCount", currentBorrowingCount);
+        memberMap.put("yearBorrowCount", orders != null ? orders.size() : 0);
 
-        // 构建卡信息
-        Map<String, Object> card = new HashMap<>();
-        card.put("memberNo", member.getCardNo());
-        card.put("memberLevel", member.getLevelId() != null ? member.getLevelId() * 10 : 0);
-        card.put("cardName", member.getCardTypeName());
-        card.put("cardStatus", "active");
-        card.put("effectiveAt", member.getCreatedAt() != null ? member.getCreatedAt().getTime() : null);
-        card.put("expiredAt", member.getValidDate() != null ? member.getValidDate().getTime() : null);
-        card.put("remainingDays", 30);
-        memberMap.put("card", card);
+        memberMap.put("card", buildMemberCard(member));
 
-        // 构建操作状态
+        // 构建操作权限
+        boolean hasCard = member.getValidDate() != null && !member.getValidDate().before(new java.util.Date());
         Map<String, Object> availability = new HashMap<>();
         availability.put("canBorrow", true);
         availability.put("borrowDisabledReason", null);
-        availability.put("canReturn", true);
-        availability.put("returnDisabledReason", null);
-        availability.put("canAddPoints", true);
-        availability.put("addPointsDisabledReason", null);
-        availability.put("canDeductPoints", true);
-        availability.put("deductPointsDisabledReason", null);
+        availability.put("canReturn", currentBorrowingCount > 0);
+        availability.put("returnDisabledReason", currentBorrowingCount > 0 ? null : "无在借图书");
+        availability.put("canAdjustPoints", true);
+        availability.put("canOpenBorrowCard", member.getCardTypeId() == null || member.getCardTypeId() == 1);  // 只有普通会员可开卡
+        availability.put("canRenewBorrowCard", hasCard && member.getCardTypeId() != null && member.getCardTypeId() != 1);  // 有卡且未过期可续费
         availability.put("maxAddPoints", 99999);
-        availability.put("maxDeductPoints", 99999);
+        availability.put("maxDeductPoints", member.getCurrentPoints() != null ? member.getCurrentPoints() : 0);
 
         Map<String, Object> data = new HashMap<>();
         data.put("member", memberMap);
@@ -337,16 +357,44 @@ public class StaffController {
      * 办理还书 — 支持单本/批量归还，后端保留订单级部分归还
      */
     @SuppressWarnings("unchecked")
-    @Operation(summary = "办理还书", description = "单本或批量还书。支持归还状态: normal/damaged/lost。入参: {\\\"borrowOrderNo\\\":\\\"DY...\\\",\\\"returnItems\\\":[{\\\"borrowDetailId\\\":1,\\\"returnStatus\\\":\\\"normal\\\"}]}")
+    @Operation(summary = "办理还书", description = "提交borrowDetailIds数组，服务端自动查借阅明细完成归还。入参: {\\\"borrowDetailIds\\\":[101,102]}")
     @PostMapping("/borrow-returns")
     public ApiResponse<Map<String, Object>> returnBooks(@RequestBody Map<String, Object> body,
                                                          HttpServletRequest request) {
-        String borrowOrderNo = (String) body.get("borrowOrderNo");
-        List<Map<String, Object>> returnItems = (List<Map<String, Object>>) body.get("returnItems");
-        if (borrowOrderNo == null || borrowOrderNo.isEmpty())
-            throw new ApiException(ApiErrorCode.PARAM_INVALID, "缺少借书单号");
-        if (returnItems == null || returnItems.isEmpty())
+        List<Object> detailIdsObj = (List<Object>) body.get("borrowDetailIds");
+        if (detailIdsObj == null || detailIdsObj.isEmpty())
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择要还的图书");
+
+        // 查第一个detailId获取借书单号
+        Long firstDetailId = Long.valueOf(detailIdsObj.get(0).toString());
+        String borrowOrderNo = null;
+        List<Map<String, Object>> returnItems = new ArrayList<>();
+        for (Object obj : detailIdsObj) {
+            Long detailId = Long.valueOf(obj.toString());
+            // 遍历所有订单找到该明细
+            List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(null);
+            BookBorrowDetail foundDetail = null;
+            if (orders != null) {
+                for (BookBorrowOrder o : orders) {
+                    List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
+                    if (details != null) {
+                        for (BookBorrowDetail d : details) {
+                            if (d.getId().equals(detailId)) {
+                                foundDetail = d;
+                                if (borrowOrderNo == null) borrowOrderNo = d.getBorrowOrderNo();
+                                Map<String, Object> item = new HashMap<>();
+                                item.put("borrowDetailId", detailId);
+                                item.put("returnStatus", "normal");
+                                returnItems.add(item);
+                                break;
+                            }
+                        }
+                    }
+                    if (foundDetail != null && borrowOrderNo != null) break;
+                }
+            }
+            if (foundDetail == null) throw new ApiException(ApiErrorCode.NOT_FOUND, "借阅明细" + detailId + "不存在");
+        }
 
         Object staffUserIdAttr = request.getAttribute("staffUserId");
         String staffId = staffUserIdAttr != null ? String.valueOf(staffUserIdAttr) : "system";
@@ -356,7 +404,6 @@ public class StaffController {
                 borrowOrderNo, returnItems, staffId, staffName, null);
         if (result.isError())
             throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED, (String) result.get("msg"));
-        @SuppressWarnings("unchecked")
         Map<String, Object> respData = (Map<String, Object>) result.get("data");
         return ApiResponse.success(respData);
     }
@@ -574,22 +621,32 @@ public class StaffController {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "积分必须为正整数");
         }
 
-        // 校验积分是否足够
-        Member member = memberService.selectMemberById(Integer.parseInt(memberId));
-        if (member == null) {
-            throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
-        }
-        if (member.getCurrentPoints() == null || member.getCurrentPoints() < points) {
-            throw new ApiException(ApiErrorCode.POINTS_NOT_ENOUGH);
+        // 调用积分服务扣减（悲观锁+事务保证原子性）
+        String operator = null;
+        Object opAttr = request.getAttribute("staffUserId");
+        if (opAttr != null) operator = String.valueOf(opAttr);
+        if (operator == null) operator = "system";
+
+        com.xhbookstore.common.core.domain.AjaxResult result = pointsService.deductPoints(
+                Integer.parseInt(memberId), points,
+                remark != null ? remark : "员工操作",
+                operator, "小程序");
+
+        if (result.isError()) {
+            throw new ApiException(ApiErrorCode.POINTS_OPERATION_DENIED, (String) result.get("msg"));
         }
 
-        // TODO: 实现消耗积分（扣减逻辑 + 插入OUT类型订单 + 插入出账单）
+        // 重新查会员获取最新积分
+        Member updated = memberService.selectMemberById(Integer.parseInt(memberId));
+        List<PointsOrder> orders = pointsService.selectByMemberId(Integer.parseInt(memberId));
+        PointsOrder latest = orders.isEmpty() ? null : orders.get(0);
+
         Map<String, Object> data = new HashMap<>();
         data.put("success", true);
-        data.put("pointsRecordId", "OT" + System.currentTimeMillis());
-        data.put("beforePoints", member.getCurrentPoints());
+        data.put("pointsRecordId", latest != null ? latest.getOrderNumber() : ("OUT" + System.currentTimeMillis()));
+        data.put("beforePoints", latest != null ? latest.getOrginPoints() : 0);
         data.put("pointsDelta", -points);
-        data.put("afterPoints", member.getCurrentPoints() - points);
+        data.put("afterPoints", updated != null ? updated.getCurrentPoints() : 0);
         data.put("operatedAt", System.currentTimeMillis());
         return ApiResponse.success(data);
     }

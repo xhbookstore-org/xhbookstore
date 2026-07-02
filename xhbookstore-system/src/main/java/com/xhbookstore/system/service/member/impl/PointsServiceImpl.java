@@ -10,9 +10,11 @@ import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.domain.member.PointsUserIntoBillDetail;
+import com.xhbookstore.system.domain.member.PointsUserOutBillDetail;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.mapper.member.PointsOrderMapper;
 import com.xhbookstore.system.mapper.member.PointsUserIntoBillDetailMapper;
+import com.xhbookstore.system.mapper.member.PointsUserOutBillDetailMapper;
 import com.xhbookstore.system.service.member.IPointsService;
 
 /**
@@ -33,6 +35,7 @@ public class PointsServiceImpl implements IPointsService {
 
     @Autowired private PointsOrderMapper pointsOrderMapper;
     @Autowired private PointsUserIntoBillDetailMapper intoBillMapper;
+    @Autowired private PointsUserOutBillDetailMapper outBillMapper;
     @Autowired private MemberMapper memberMapper;
 
     @Override
@@ -104,6 +107,72 @@ public class PointsServiceImpl implements IPointsService {
         memberMapper.updateMember(updateMember);
 
         return AjaxResult.success("积分添加成功，订单号：" + orderNumber);
+    }
+
+    @Override
+    public AjaxResult deductPoints(Integer memberId, Integer points, String description, String operator, String operationDevice) {
+        // 1. 悲观锁查询会员信息
+        Member member = memberMapper.selectMemberByIdForUpdate(memberId);
+        if (member == null) return AjaxResult.error("会员不存在");
+
+        int currentPoints = member.getCurrentPoints() != null ? member.getCurrentPoints() : 0;
+        if (currentPoints < points) return AjaxResult.error("积分不足，当前余额：" + currentPoints);
+
+        int oldPoints = currentPoints;
+        int newPoints = oldPoints - points;
+
+        // 2. 生成订单号 OUT
+        String orderNumber = generateOrderNumber("OUT");
+
+        // 3. 插入订单表
+        PointsOrder order = new PointsOrder();
+        order.setOrderNumber(orderNumber);
+        order.setOpenId(member.getCardNo() != null ? member.getCardNo() : "");
+        order.setCardNo(member.getCardNo() != null ? member.getCardNo() : "");
+        order.setMemberId(memberId);
+        order.setAppOrderNumber("");
+        order.setAmount(-points);
+        order.setDescription(description != null ? description : "管理员扣减积分");
+        order.setType(1);
+        order.setCustomArgs("operator:" + operator);
+        order.setCompletedTime(new Date());
+        order.setClientIp("127.0.0.1");
+        order.setItemId("");
+        order.setItemName("");
+        order.setPrice(points);
+        order.setDiscountedPrice(points);
+        order.setOperationDevice(operationDevice != null ? operationDevice : "小程序");
+        order.setIsDel(0);
+        order.setAmountType(2);
+        order.setAppId("");
+        order.setOrginPoints(oldPoints);
+        order.setAfterPoints(newPoints);
+        pointsOrderMapper.insertPointsOrder(order);
+
+        // 4. 插入出账单表
+        PointsUserOutBillDetail outBill = new PointsUserOutBillDetail();
+        outBill.setMemberId(memberId);
+        outBill.setPoints(points);
+        outBill.setRemainingPoints(newPoints);
+        outBill.setDescription(description != null ? description : "管理员扣减积分");
+        outBill.setOrderNoSrc(orderNumber);
+        outBill.setActivityKey("");
+        outBill.setActivityName("");
+        outBill.setEventKey("");
+        outBill.setEventName("");
+        outBill.setAccountType(0);
+        outBill.setBillStatus(0);
+        outBill.setIsDel(0);
+        outBillMapper.insertOutBill(outBill);
+
+        // 5. 更新会员积分余额
+        Member updateMember = new Member();
+        updateMember.setId(memberId);
+        updateMember.setCurrentPoints(newPoints);
+        updateMember.setLastOperator(operator);
+        memberMapper.updateMember(updateMember);
+
+        return AjaxResult.success("积分扣减成功，订单号：" + orderNumber);
     }
 
     /**

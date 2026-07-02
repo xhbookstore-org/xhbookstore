@@ -56,13 +56,16 @@ public class UserController {
             if (member != null) {
                 // 会员卡信息
                 Map<String, Object> card = new HashMap<>();
+                card.put("cardTypeId", member.getCardTypeId());
+                card.put("cardTypeName", member.getCardTypeName());
                 card.put("memberNo", member.getCardNo());
-                card.put("cardName", member.getCardTypeName());
                 card.put("cardStatus", member.getStatus() != null && member.getStatus() == 0 ? "active" : "inactive");
                 card.put("level", member.getLevelId());
                 card.put("remainingDays", member.getValidDate() != null
                         ? Math.max(0, (member.getValidDate().getTime() - System.currentTimeMillis()) / 86400000L)
                         : 0);
+                card.put("effectiveAt", member.getCreatedAt() != null ? member.getCreatedAt().getTime() : null);
+                card.put("expiredAt", member.getValidDate() != null ? member.getValidDate().getTime() : null);
 
                 memberMap.put("memberId", member.getId());
                 memberMap.put("memberNo", member.getCardNo());

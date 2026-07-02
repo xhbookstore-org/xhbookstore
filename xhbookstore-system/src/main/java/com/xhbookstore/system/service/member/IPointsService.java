@@ -21,6 +21,11 @@ public interface IPointsService {
     AjaxResult addPoints(Integer memberId, Integer points, String description, String operator, String operationDevice);
 
     /**
+     * 扣减用户积分（悲观锁+事务）
+     */
+    AjaxResult deductPoints(Integer memberId, Integer points, String description, String operator, String operationDevice);
+
+    /**
      * 查询会员积分订单列表
      * @param memberId 会员ID
      * @return 积分订单列表

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.PointsUserOutBillDetailMapper">
+
+    <insert id="insertOutBill" parameterType="com.xhbookstore.system.domain.member.PointsUserOutBillDetail">
+        insert into xhbs_points_user_out_bill_detail (member_id, points, remaining_points, description,
+            order_no_src, activity_key, activity_name, event_key, event_name, account_type, bill_status, is_del)
+        values (#{memberId}, #{points}, #{remainingPoints}, #{description},
+            #{orderNoSrc}, #{activityKey}, #{activityName}, #{eventKey}, #{eventName}, #{accountType}, #{billStatus}, #{isDel})
+    </insert>
+
+</mapper>
