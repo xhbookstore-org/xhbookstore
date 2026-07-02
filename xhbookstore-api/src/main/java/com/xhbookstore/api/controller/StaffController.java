@@ -125,6 +125,7 @@ public class StaffController {
         }
 
         // 4. 记录变更前
+        Integer beforeCardTypeId = member.getCardTypeId();
         String beforeCardType = member.getCardTypeName();
         java.util.Date beforeValidDate = member.getValidDate();
 
@@ -170,8 +171,10 @@ public class StaffController {
         log.setMemberId(member.getId());
         log.setMemberNo(member.getCardNo());
         log.setOperationType(operationType);
+        log.setBeforeCardTypeId(beforeCardTypeId);
         log.setBeforeCardType(beforeCardType);
         log.setBeforeValidDate(beforeValidDate instanceof java.sql.Date ? null : beforeValidDate);
+        log.setAfterCardTypeId(cardTypeId);
         log.setAfterCardType(cardTypeName);
         log.setAfterValidDate(newValidDate);
         log.setOperatorId(operatorId);
