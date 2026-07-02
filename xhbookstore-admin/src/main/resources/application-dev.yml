@@ -9,8 +9,8 @@ spring:
     druid:
       master:
         url: jdbc:mysql://152.136.127.168:3306/xhbookstore?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&characterSetResults=utf8mb4&zeroDateTimeBehavior=convertToNull&useSSL=false&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
-        username: root
-        password: root
+        username: xhbookstore
+        password: txkrnsXy3CWcECxW
       initialSize: 5
       minIdle: 5
       maxActive: 20
@@ -25,7 +25,7 @@ spring:
     redis:
       host: 152.136.127.168
       port: 6379
-      password:
+      password: xhbookstore
       database: 0
   devtools:
     restart:

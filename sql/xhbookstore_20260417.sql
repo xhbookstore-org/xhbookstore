@@ -730,20 +730,46 @@ create table gen_table_column (
 -- ----------------------------
 -- 21.1 卡类型表
 -- ----------------------------
-drop table if exists card_type;
-create table card_type (
+drop table if exists util_card_type;
+create table util_card_type (
   id              int             not null auto_increment    comment '主键',
   type_name       varchar(50)     not null                   comment '卡类型名称',
+  price           decimal(10,2)   default null               comment '售价（元）',
   valid_days      int             not null default 0         comment '有效天数',
+  borrow_limit    int             default 0                  comment '最大同时借阅数',
+  discount        decimal(5,2)    default 1.00               comment '购书折扣',
   is_renewal      tinyint         default 0                  comment '是否续费卡：0-新卡，1-续费卡',
+  description     varchar(255)    default null               comment '卡类型说明',
+  sort            int             default 0                  comment '排序',
   status          tinyint         default 0                  comment '状态：0-正常，1-停用',
+  create_by       varchar(64)     default null               comment '创建人',
+  create_time     datetime        default current_timestamp  comment '创建时间',
+  update_by       varchar(64)     default null               comment '更新人',
+  update_time     datetime        default null on update current_timestamp comment '更新时间',
   primary key (id)
-) engine=innodb auto_increment=1 comment='卡类型表';
+) engine=innodb auto_increment=1 comment='卡类型配置表';
 
-insert into card_type values (1, '年卡', 365, 0, 0);
-insert into card_type values (2, '半年卡', 180, 0, 0);
-insert into card_type values (3, '续费年卡', 365, 1, 0);
-insert into card_type values (4, '续费半年卡', 180, 1, 0);
+drop table if exists util_card_type_log;
+create table util_card_type_log (
+  id              bigint          not null auto_increment    comment '主键',
+  card_type_id    int             not null                   comment '卡类型ID',
+  operation_type  varchar(20)     not null                   comment 'CREATE/UPDATE/DELETE',
+  before_data     json            default null               comment '变更前完整数据(JSON)',
+  after_data      json            not null                   comment '变更后完整数据(JSON)',
+  operator_id     varchar(64)     default null               comment '操作人ID',
+  operator        varchar(64)     default null               comment '操作人姓名',
+  remark          varchar(255)    default null               comment '备注',
+  created_at      datetime        default current_timestamp  comment '操作时间',
+  primary key (id),
+  index idx_card_type_id (card_type_id),
+  index idx_created_at (created_at)
+) engine=innodb comment='卡类型操作日志';
+
+insert into util_card_type values (1, '普通会员', 0.00, 0, 2, 1.00, 0, '免费注册', 0, 0, 'admin', now(), null, null);
+insert into util_card_type values (2, '年卡', 365.00, 365, 10, 0.85, 0, '年卡会员', 1, 0, 'admin', now(), null, null);
+insert into util_card_type values (3, '半年卡', 200.00, 180, 5, 0.90, 0, '半年卡会员', 2, 0, 'admin', now(), null, null);
+insert into util_card_type values (4, '续费年卡', 365.00, 365, 10, 0.85, 1, '续费年卡会员', 3, 0, 'admin', now(), null, null);
+insert into util_card_type values (5, '续费半年卡', 200.00, 180, 5, 0.90, 1, '续费半年卡会员', 4, 0, 'admin', now(), null, null);
 
 -- ----------------------------
 -- 21.2 会员等级表

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.CardTypeLogMapper">
+
+    <insert id="insert" parameterType="java.util.Map">
+        insert into util_card_type_log (card_type_id, operation_type, before_data, after_data, operator_id, operator, remark, created_at)
+        values (#{cardTypeId}, #{operationType}, #{beforeData}, #{afterData}, #{operatorId}, #{operator}, #{remark}, now())
+    </insert>
+
+    <select id="selectByCardTypeId" parameterType="Integer" resultType="java.util.Map">
+        select * from util_card_type_log where card_type_id = #{cardTypeId} order by created_at desc
+    </select>
+
+</mapper>
