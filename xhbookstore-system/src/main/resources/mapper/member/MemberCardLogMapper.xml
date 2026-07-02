@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.MemberCardLogMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.member.MemberCardLog" id="MemberCardLogResult">
+        <id property="id" column="id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="memberNo" column="member_no"/>
+        <result property="operationType" column="operation_type"/>
+        <result property="beforeCardTypeId" column="before_card_type_id"/>
+        <result property="beforeCardType" column="before_card_type"/>
+        <result property="beforeValidDate" column="before_valid_date"/>
+        <result property="afterCardTypeId" column="after_card_type_id"/>
+        <result property="afterCardType" column="after_card_type"/>
+        <result property="afterValidDate" column="after_valid_date"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="device" column="device"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.member.MemberCardLog" useGeneratedKeys="true" keyProperty="id">
+        insert into member_card_log (member_id, member_no, operation_type,
+            before_card_type_id, before_card_type, before_valid_date,
+            after_card_type_id, after_card_type, after_valid_date,
+            operator_id, operator_name, device, remark, created_at)
+        values (#{memberId}, #{memberNo}, #{operationType},
+            #{beforeCardTypeId}, #{beforeCardType}, #{beforeValidDate},
+            #{afterCardTypeId}, #{afterCardType}, #{afterValidDate},
+            #{operatorId}, #{operatorName}, #{device}, #{remark}, now())
+    </insert>
+
+    <select id="selectByMemberId" parameterType="Integer" resultMap="MemberCardLogResult">
+        select * from member_card_log where member_id = #{memberId} order by created_at desc
+    </select>
+
+</mapper>

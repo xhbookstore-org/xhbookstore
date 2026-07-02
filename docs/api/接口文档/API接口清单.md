@@ -36,6 +36,8 @@
 | GET | /staff/points-reasons | 积分事项 | E10 |
 | POST | /staff/members/{id}/points/add | 增加积分 | E10 |
 | POST | /staff/members/{id}/points/deduct | 消耗积分 | E10 |
+| GET | /staff/card-types | 卡类型列表 | staff/15 |
+| POST | /staff/members/{id}/activate-card | 开通/续费会员卡 | staff/14 |
 | GET | /staff/points-records | 全市积分列表 | E04 |
 | GET | /staff/points-records/{id} | 积分详情 | E04 |
 

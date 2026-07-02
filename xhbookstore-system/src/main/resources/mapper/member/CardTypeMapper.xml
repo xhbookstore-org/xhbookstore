@@ -8,10 +8,11 @@
         <result property="validDays" column="valid_days"/>
         <result property="isRenewal" column="is_renewal"/>
         <result property="status" column="status"/>
+        <result property="sort" column="sort"/>
     </resultMap>
 
     <select id="selectAll" resultMap="CardTypeResult">
-        select * from card_type where status = 0 order by id
+        select * from card_type where status = 0 order by sort asc, id asc
     </select>
 
     <select id="selectById" parameterType="Integer" resultMap="CardTypeResult">

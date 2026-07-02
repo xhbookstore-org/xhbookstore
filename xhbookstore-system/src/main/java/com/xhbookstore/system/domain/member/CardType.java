@@ -9,6 +9,7 @@ public class CardType {
     private Integer validDays;
     private Integer isRenewal;
     private Integer status;
+    private Integer sort;
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -20,4 +21,6 @@ public class CardType {
     public void setIsRenewal(Integer isRenewal) { this.isRenewal = isRenewal; }
     public Integer getStatus() { return status; }
     public void setStatus(Integer status) { this.status = status; }
+    public Integer getSort() { return sort; }
+    public void setSort(Integer sort) { this.sort = sort; }
 }

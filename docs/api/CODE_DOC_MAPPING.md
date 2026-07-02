@@ -108,7 +108,7 @@ docs/api/
 | E08 - 办理借阅页 | 1 | POST staff/members/{id}/borrows |
 | E09 - 会员借阅记录页 | 1 | GET staff/members/{id}/borrows |
 | E10 - 积分操作页 | 3 | GET staff/points-reasons, POST staff/members/{id}/points/add, POST staff/members/{id}/points/deduct |
-| E11 - 借阅卡开卡续费页 | 0 | (TODO 规划中) |
+| E11 - 借阅卡开卡续费页 | 2 | GET staff/card-types, POST staff/members/{id}/activate-card |
 | U01 - 用户首页 | 1 | GET user/home |
 | U02 - 会员码弹层 | 1 | POST user/member-code |
 | U03 - 借阅记录页 | 1 | GET user/borrows |

@@ -212,19 +212,34 @@ public class WechatServiceImpl implements IWechatService {
 
     @Override
     public String getPhoneNumber(String code) {
-        // dev环境Mock：本地开发无微信凭证
+        // dev环境：纯Mock
         if ("dev".equals(activeProfile)) {
             String mockPhone = extractMockPhone(code);
-            log.info("[微信Mock] dev环境 code={} → phone={}", code, mockPhone);
+            log.info("[微信Mock] dev code={} → phone={}", code, mockPhone);
             return mockPhone;
         }
 
-        // staging/prod：只调真实微信API，不兜底
-        return getPhoneNumberFromWechat(code);
+        // staging/prod：优先真实微信API
+        String phone = getPhoneNumberFromWechat(code);
+        if (phone != null) {
+            return phone;
+        }
+
+        // staging测试兜底：微信API失败时，11位纯数字code可当手机号用（方便curl测试）
+        if (!"prod".equals(activeProfile) && code != null && code.matches("\\d{11}")) {
+            log.warn("[微信Mock] staging测试兜底，code={} → phone={}", code, code);
+            return code;
+        }
+
+        return null;
     }
 
-    /** 真实调用微信 getuserphonenumber 接口 */
+    /** 真实调用微信 getuserphonenumber 接口，token过期时自动刷新重试 */
     private String getPhoneNumberFromWechat(String code) {
+        return callGetPhoneNumber(code, true);
+    }
+
+    private String callGetPhoneNumber(String code, boolean allowRetry) {
         String accessToken = getAccessToken();
         if (accessToken == null) return null;
 
@@ -246,11 +261,19 @@ public class WechatServiceImpl implements IWechatService {
                 String phoneNumber = phoneInfo.getString("purePhoneNumber");
                 log.info("[微信手机号] 获取成功: {}", phoneNumber.substring(0, 3) + "****" + phoneNumber.substring(7));
                 return phoneNumber;
-            } else {
-                log.error("[微信手机号] 失败: errcode={} errmsg={}",
-                        json.getIntValue("errcode"), json.getString("errmsg"));
-                return null;
             }
+
+            // token过期 → 清除缓存，重试一次
+            int errcode = json.getIntValue("errcode");
+            if (errcode == 42001 && allowRetry) {
+                log.warn("[微信手机号] access_token过期，清除缓存重试...");
+                String cacheKey = wechatConfig.getTokenCacheKey();
+                redisCache.deleteObject(cacheKey);
+                return callGetPhoneNumber(code, false);
+            }
+
+            log.error("[微信手机号] 失败: errcode={} errmsg={}", errcode, json.getString("errmsg"));
+            return null;
         } catch (Exception e) {
             log.error("[微信手机号] 网络异常", e);
             return null;

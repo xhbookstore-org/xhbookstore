@@ -9,10 +9,14 @@ import com.xhbookstore.api.constant.ApiErrorCode;
 import com.xhbookstore.api.exception.ApiException;
 import com.xhbookstore.api.model.ApiResponse;
 import com.xhbookstore.api.model.PageResult;
+import com.xhbookstore.system.domain.member.CardType;
 import com.xhbookstore.system.domain.member.Member;
+import com.xhbookstore.system.domain.member.MemberCardLog;
 import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.domain.book.*;
+import com.xhbookstore.system.mapper.member.MemberCardLogMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
+import com.xhbookstore.system.service.member.ICardTypeService;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
 import com.xhbookstore.system.service.book.IBookBorrowService;
@@ -29,9 +33,13 @@ public class StaffController {
     @Autowired
     private MemberMapper memberMapper;
     @Autowired
+    private ICardTypeService cardTypeService;
+    @Autowired
     private IPointsService pointsService;
     @Autowired
     private IBookBorrowService bookBorrowService;
+    @Autowired
+    private MemberCardLogMapper memberCardLogMapper;
 
     /**
      * 查询员工首页 §12.1
@@ -43,6 +51,126 @@ public class StaffController {
         data.put("todayStoreBorrowCount", 12);
         data.put("todayStaffBorrowCount", 3);
         return ApiResponse.success(data);
+    }
+
+    /**
+     * 查询会员卡类型列表 — 用于开卡/续费时选择卡类型
+     */
+    @GetMapping("/card-types")
+    public ApiResponse<Map<String, Object>> cardTypes() {
+        List<CardType> list = cardTypeService.selectAll();
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (CardType ct : list) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", ct.getId());
+            item.put("typeName", ct.getTypeName());
+            item.put("validDays", ct.getValidDays());
+            item.put("isRenewal", ct.getIsRenewal() != null && ct.getIsRenewal() == 1);
+            item.put("status", ct.getStatus());
+            items.add(item);
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("list", items);
+        return ApiResponse.success(data);
+    }
+
+    /**
+     * 开通/续费会员卡 — 新卡从今天算有效期，续费在原到期日叠加
+     */
+    @PostMapping("/members/{memberId}/activate-card")
+    public ApiResponse<Map<String, Object>> activateCard(
+            @PathVariable String memberId,
+            @RequestBody Map<String, Object> body,
+            HttpServletRequest request) {
+
+        Integer cardTypeId = (Integer) body.get("cardTypeId");
+        if (cardTypeId == null) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择卡类型");
+        }
+        String remark = (String) body.get("remark");
+
+        // 1. 查卡类型
+        CardType cardType = cardTypeService.selectById(cardTypeId);
+        if (cardType == null || cardType.getStatus() != 0) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "无效的卡类型");
+        }
+
+        // 2. 悲观锁查会员
+        Member member = memberMapper.selectMemberByIdForUpdate(Integer.parseInt(memberId));
+        if (member == null) {
+            throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
+        }
+
+        // 3. 记录变更前状态
+        Integer beforeCardTypeId = member.getCardTypeId();
+        String beforeCardType = member.getCardTypeName();
+        java.util.Date beforeValidDate = member.getValidDate();
+
+        // 4. 计算到期日
+        java.util.Date newValidDate;
+        String operationType;
+        java.util.Calendar cal = java.util.Calendar.getInstance();
+
+        if (cardType.getIsRenewal() != null && cardType.getIsRenewal() == 1) {
+            // 续费：必须卡在有效期内
+            if (member.getValidDate() == null || member.getValidDate().before(new java.util.Date())) {
+                throw new ApiException(ApiErrorCode.PARAM_INVALID,
+                        "会员卡已过期（到期日：" + (member.getValidDate() != null ? member.getValidDate().toString() : "无") +
+                        "），请选择「年卡」或「半年卡」开通新卡");
+            }
+            cal.setTime(member.getValidDate());
+            cal.add(java.util.Calendar.DAY_OF_YEAR, cardType.getValidDays());
+            operationType = "RENEW";
+        } else {
+            // 新卡：从今天算
+            cal.setTime(new java.util.Date());
+            cal.add(java.util.Calendar.DAY_OF_YEAR, cardType.getValidDays());
+            operationType = "ACTIVATE";
+        }
+        newValidDate = cal.getTime();
+
+        // 5. 更新会员
+        member.setCardTypeId(cardTypeId);
+        member.setValidDate(newValidDate);
+        member.setStatus(0); // 确保状态正常
+        member.setLastOperator(getOperatorFromRequest(request));
+        memberMapper.updateMember(member);
+
+        // 6. 写操作日志
+        MemberCardLog log = new MemberCardLog();
+        log.setMemberId(member.getId());
+        log.setMemberNo(member.getCardNo());
+        log.setOperationType(operationType);
+        log.setBeforeCardTypeId(beforeCardTypeId);
+        log.setBeforeCardType(beforeCardType);
+        log.setBeforeValidDate(beforeValidDate instanceof java.sql.Date ? null : beforeValidDate);
+        log.setAfterCardTypeId(cardTypeId);
+        log.setAfterCardType(cardType.getTypeName());
+        log.setAfterValidDate(newValidDate);
+        Object staffIdAttr = request.getAttribute("staffUserId");
+        log.setOperatorId(staffIdAttr != null ? String.valueOf(staffIdAttr) : "system");
+        log.setOperatorName("员工"); // TODO: 从员工表取真实姓名
+        log.setDevice("小程序");
+        log.setRemark(remark);
+        memberCardLogMapper.insert(log);
+
+        // 7. 返回结果
+        long remainingDays = (newValidDate.getTime() - System.currentTimeMillis()) / 86400000L;
+        Map<String, Object> data = new HashMap<>();
+        data.put("success", true);
+        data.put("memberId", member.getId());
+        data.put("memberNo", member.getCardNo());
+        data.put("cardTypeName", cardType.getTypeName());
+        data.put("operationType", operationType);
+        data.put("validDate", newValidDate);
+        data.put("remainingDays", Math.max(0, remainingDays));
+        data.put("cardStatus", "active");
+        return ApiResponse.success(data);
+    }
+
+    private String getOperatorFromRequest(HttpServletRequest request) {
+        Object attr = request.getAttribute("staffUserId");
+        return attr != null ? String.valueOf(attr) : "system";
     }
 
     /**
