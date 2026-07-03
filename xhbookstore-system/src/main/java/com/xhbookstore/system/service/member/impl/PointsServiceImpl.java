@@ -110,6 +110,7 @@ public class PointsServiceImpl implements IPointsService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public AjaxResult deductPoints(Integer memberId, Integer points, String description, String operator, String operationDevice) {
         // 1. 悲观锁查询会员信息
         Member member = memberMapper.selectMemberByIdForUpdate(memberId);

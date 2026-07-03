@@ -5,6 +5,8 @@ import com.alibaba.fastjson2.JSON;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.xhbookstore.common.annotation.Log;
+import com.xhbookstore.common.enums.BusinessType;
 import com.xhbookstore.common.core.controller.BaseController;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.common.core.page.TableDataInfo;
@@ -24,6 +26,7 @@ public class CardTypeController extends BaseController {
     @Autowired private CardTypeLogMapper cardTypeLogMapper;
 
     /** 列表 */
+    @PreAuthorize("@ss.hasPermi('member:cardType:list')")
     @GetMapping("/list")
     public TableDataInfo list() {
         List<CardType> list = cardTypeMapper.selectAll();
@@ -31,6 +34,7 @@ public class CardTypeController extends BaseController {
     }
 
     /** 详情 */
+    @PreAuthorize("@ss.hasPermi('member:cardType:query')")
     @GetMapping("/{id}")
     public AjaxResult getInfo(@PathVariable Integer id) {
         CardType ct = cardTypeMapper.selectById(id);
@@ -38,6 +42,8 @@ public class CardTypeController extends BaseController {
     }
 
     /** 新增 */
+    @PreAuthorize("@ss.hasPermi('member:cardType:add')")
+    @Log(title = "卡类型管理", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody CardType ct) {
         ct.setCreateBy(SecurityUtils.getUsername());
@@ -49,6 +55,8 @@ public class CardTypeController extends BaseController {
     }
 
     /** 编辑 — 记录变更字段到日志 */
+    @PreAuthorize("@ss.hasPermi('member:cardType:edit')")
+    @Log(title = "卡类型管理", businessType = BusinessType.UPDATE)
     @PutMapping("/{id}")
     public AjaxResult edit(@PathVariable Integer id, @RequestBody CardType ct) {
         CardType before = cardTypeMapper.selectById(id);
@@ -76,6 +84,8 @@ public class CardTypeController extends BaseController {
     }
 
     /** 删除（逻辑删，is_del=1） */
+    @PreAuthorize("@ss.hasPermi('member:cardType:remove')")
+    @Log(title = "卡类型管理", businessType = BusinessType.DELETE)
     @DeleteMapping("/{id}")
     public AjaxResult remove(@PathVariable Integer id) {
         CardType before = cardTypeMapper.selectById(id);
@@ -89,6 +99,7 @@ public class CardTypeController extends BaseController {
     }
 
     /** 操作日志 */
+    @PreAuthorize("@ss.hasPermi('member:cardType:query')")
     @GetMapping("/{id}/log")
     public AjaxResult log(@PathVariable Integer id) {
         List<Map<String, Object>> logs = cardTypeLogMapper.selectByCardTypeId(id);

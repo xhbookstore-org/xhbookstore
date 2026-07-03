@@ -365,46 +365,62 @@ public class StaffController {
         if (detailIdsObj == null || detailIdsObj.isEmpty())
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "请选择要还的图书");
 
-        // 查第一个detailId获取借书单号
-        Long firstDetailId = Long.valueOf(detailIdsObj.get(0).toString());
-        String borrowOrderNo = null;
-        List<Map<String, Object>> returnItems = new ArrayList<>();
+        Map<String, List<Map<String, Object>>> itemsByOrderNo = new LinkedHashMap<>();
         for (Object obj : detailIdsObj) {
             Long detailId = Long.valueOf(obj.toString());
-            // 遍历所有订单找到该明细
-            List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(null);
-            BookBorrowDetail foundDetail = null;
-            if (orders != null) {
-                for (BookBorrowOrder o : orders) {
-                    List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
-                    if (details != null) {
-                        for (BookBorrowDetail d : details) {
-                            if (d.getId().equals(detailId)) {
-                                foundDetail = d;
-                                if (borrowOrderNo == null) borrowOrderNo = d.getBorrowOrderNo();
-                                Map<String, Object> item = new HashMap<>();
-                                item.put("borrowDetailId", detailId);
-                                item.put("returnStatus", "normal");
-                                returnItems.add(item);
-                                break;
-                            }
-                        }
-                    }
-                    if (foundDetail != null && borrowOrderNo != null) break;
-                }
+            BookBorrowDetail detail = bookBorrowService.selectDetailById(detailId);
+            if (detail == null) {
+                throw new ApiException(ApiErrorCode.NOT_FOUND, "借阅明细" + detailId + "不存在");
             }
-            if (foundDetail == null) throw new ApiException(ApiErrorCode.NOT_FOUND, "借阅明细" + detailId + "不存在");
+            if (detail.getBorrowOrderNo() == null || detail.getBorrowOrderNo().trim().isEmpty()) {
+                throw new ApiException(ApiErrorCode.NOT_FOUND, "借阅明细" + detailId + "未关联借书单");
+            }
+
+            int borrowQty = detail.getBorrowQty() != null ? detail.getBorrowQty() : 0;
+            int returnedQty = detail.getReturnedQty() != null ? detail.getReturnedQty() : 0;
+            int purchaseQty = detail.getPurchaseQty() != null ? detail.getPurchaseQty() : 0;
+            int returnQty = borrowQty - returnedQty - purchaseQty;
+            if (returnQty <= 0) {
+                throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED, "借阅明细" + detailId + "无可还数量");
+            }
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("borrowDetailId", detailId);
+            item.put("returnQty", returnQty);
+            item.put("returnType", 1);
+            itemsByOrderNo.computeIfAbsent(detail.getBorrowOrderNo(), k -> new ArrayList<>()).add(item);
         }
 
         Object staffUserIdAttr = request.getAttribute("staffUserId");
         String staffId = staffUserIdAttr != null ? String.valueOf(staffUserIdAttr) : "system";
         String staffName = "员工";
 
-        com.xhbookstore.common.core.domain.AjaxResult result = bookBorrowService.returnBook(
-                borrowOrderNo, returnItems, staffId, staffName, null);
-        if (result.isError())
-            throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED, (String) result.get("msg"));
-        Map<String, Object> respData = (Map<String, Object>) result.get("data");
+        List<String> returnOrderNos = new ArrayList<>();
+        int totalReturned = 0;
+        for (Map.Entry<String, List<Map<String, Object>>> entry : itemsByOrderNo.entrySet()) {
+            com.xhbookstore.common.core.domain.AjaxResult result = bookBorrowService.returnBook(
+                    entry.getKey(), entry.getValue(), staffId, staffName, null);
+            if (result.isError()) {
+                throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED, (String) result.get("msg"));
+            }
+            Map<String, Object> resultData = (Map<String, Object>) result.get("data");
+            if (resultData != null) {
+                Object orderNos = resultData.get("returnOrderNos");
+                if (orderNos instanceof Collection<?>) {
+                    for (Object orderNo : (Collection<?>) orderNos) {
+                        returnOrderNos.add(String.valueOf(orderNo));
+                    }
+                }
+                Object returned = resultData.get("totalReturned");
+                if (returned != null) {
+                    totalReturned += Integer.parseInt(returned.toString());
+                }
+            }
+        }
+
+        Map<String, Object> respData = new HashMap<>();
+        respData.put("returnOrderNos", returnOrderNos);
+        respData.put("totalReturned", totalReturned);
         return ApiResponse.success(respData);
     }
 

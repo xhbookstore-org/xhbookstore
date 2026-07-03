@@ -3,7 +3,7 @@
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
         <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd"
-          v-hasPermi="['system:cardtype:add']">新增</el-button>
+          v-hasPermi="['member:cardType:add']">新增</el-button>
       </el-col>
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
@@ -32,10 +32,10 @@
       <el-table-column label="操作" align="center" width="200" fixed="right">
         <template slot-scope="scope">
           <el-button size="mini" type="text" icon="el-icon-edit" @click="handleUpdate(scope.row)"
-            v-hasPermi="['system:cardtype:edit']">修改</el-button>
-          <el-button size="mini" type="text" icon="el-icon-view" @click="handleLog(scope.row)">日志</el-button>
+            v-hasPermi="['member:cardType:edit']">修改</el-button>
+          <el-button size="mini" type="text" icon="el-icon-view" @click="handleLog(scope.row)" v-hasPermi="['member:cardType:query']">日志</el-button>
           <el-button size="mini" type="text" icon="el-icon-delete" @click="handleDelete(scope.row)"
-            v-hasPermi="['system:cardtype:remove']">删除</el-button>
+            v-hasPermi="['member:cardType:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>

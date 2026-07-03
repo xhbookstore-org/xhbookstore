@@ -4,6 +4,9 @@ import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import com.xhbookstore.common.annotation.DataScope;
+import com.xhbookstore.common.annotation.Log;
+import com.xhbookstore.common.enums.BusinessType;
 import com.xhbookstore.common.core.controller.BaseController;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.common.core.page.TableDataInfo;
@@ -23,6 +26,8 @@ public class MemberController extends BaseController {
     @Autowired private CardTypeMapper cardTypeMapper;
     @Autowired private IPointsService pointsService;
 
+    @PreAuthorize("@ss.hasPermi('member:member:list')")
+    @DataScope(deptAlias = "m")
     @GetMapping("/list")
     public TableDataInfo list(Member member) {
         startPage();
@@ -30,6 +35,7 @@ public class MemberController extends BaseController {
         return getDataTable(list);
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:query')")
     @GetMapping(value = "/{id}")
     public AjaxResult getInfo(@PathVariable Integer id) {
         Member member = memberService.selectMemberById(id);
@@ -40,6 +46,8 @@ public class MemberController extends BaseController {
         return result;
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:add')")
+    @Log(title = "会员管理", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody Member member) {
         if (member.getDeptId() == null) {
@@ -48,17 +56,22 @@ public class MemberController extends BaseController {
         return memberService.insertMember(member, null);
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:edit')")
+    @Log(title = "会员管理", businessType = BusinessType.UPDATE)
     @PutMapping(value = "/{id}")
     public AjaxResult edit(@PathVariable Integer id, @RequestBody Member member) {
         member.setId(id);
         return memberService.updateMember(member, null);
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:remove')")
+    @Log(title = "会员管理", businessType = BusinessType.DELETE)
     @DeleteMapping(value = "/{id}")
     public AjaxResult remove(@PathVariable Integer id) {
         return memberService.deleteMember(id);
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:add')")
     @GetMapping("/generateCardNo")
     public AjaxResult generateCardNo(@RequestParam(required = false) Long deptId) {
         if (deptId == null) {
@@ -68,6 +81,7 @@ public class MemberController extends BaseController {
         return AjaxResult.success("ok", cardNo);
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:query')")
     @GetMapping("/cardTypes")
     public AjaxResult cardTypes() {
         // 数据源改为 util_card_type（筛选 is_del=0）
@@ -75,18 +89,24 @@ public class MemberController extends BaseController {
         return AjaxResult.success(list);
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:query')")
     @GetMapping("/{id}/points")
     public AjaxResult pointsList(@PathVariable Integer id) {
         List<PointsOrder> list = pointsService.selectByMemberId(id);
         return AjaxResult.success(list);
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:points')")
+    @Log(title = "会员积分", businessType = BusinessType.UPDATE)
     @PostMapping("/{id}/points")
     public AjaxResult addPoints(@PathVariable Integer id, @RequestBody PointsAddRequest request) {
         return pointsService.addPoints(id, request.getPoints(), request.getDescription(),
                 getLoginUser().getUsername(), "PC");
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:export')")
+    @Log(title = "会员管理", businessType = BusinessType.EXPORT)
+    @DataScope(deptAlias = "m")
     @GetMapping("/export")
     public AjaxResult export(Member member) {
         List<Member> list = memberService.selectMemberListForExport(member);

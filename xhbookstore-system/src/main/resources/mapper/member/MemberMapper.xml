@@ -50,6 +50,7 @@
             <if test="params.endTime != null and params.endTime != ''">
                 and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
             </if>
+            ${params.dataScope}
         </where>
         order by m.created_at desc
     </select>
@@ -70,6 +71,7 @@
             <if test="params.endTime != null and params.endTime != ''">
                 and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
             </if>
+            ${params.dataScope}
         </where>
         order by m.created_at desc
     </select>

@@ -25,6 +25,9 @@ public interface IBookBorrowService {
     /** 查询借书单明细 */
     List<BookBorrowDetail> selectDetailsByOrderId(Long orderId);
 
+    /** 查询借阅明细 */
+    BookBorrowDetail selectDetailById(Long detailId);
+
     /** 查询还书记录 */
     List<BookReturnDetail> selectReturnsByOrderId(Long orderId);
 }

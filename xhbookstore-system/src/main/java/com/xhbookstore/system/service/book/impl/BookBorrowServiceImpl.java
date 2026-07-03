@@ -196,6 +196,11 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     }
 
     @Override
+    public BookBorrowDetail selectDetailById(Long detailId) {
+        return detailMapper.selectById(detailId);
+    }
+
+    @Override
     public List<BookReturnDetail> selectReturnsByOrderId(Long orderId) {
         return returnMapper.selectByBorrowOrderId(orderId);
     }

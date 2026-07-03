@@ -26,13 +26,13 @@
     <!-- 操作按钮 -->
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd">新增</el-button>
+        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd" v-hasPermi="['member:member:add']">新增</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="info" plain icon="el-icon-upload2" size="mini" @click="handleImport">导入</el-button>
+        <el-button type="info" plain icon="el-icon-upload2" size="mini" @click="handleImport" v-hasPermi="['member:member:import']">导入</el-button>
       </el-col>
       <el-col :span="1.5">
-        <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport">导出</el-button>
+        <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport" v-hasPermi="['member:member:export']">导出</el-button>
       </el-col>
     </el-row>
 
@@ -58,13 +58,13 @@
       </el-table-column>
       <el-table-column label="操作" align="center" width="200" class-name="small-padding fixed-width">
         <template slot-scope="scope">
-          <el-button size="mini" type="text" icon="el-icon-star-off" @click="handlePoints(scope.row)">积分</el-button>
-          <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
-          <el-button size="mini" type="text" icon="el-icon-edit" @click="handleEdit(scope.row)">修改</el-button>
+          <el-button size="mini" type="text" icon="el-icon-star-off" @click="handlePoints(scope.row)" v-hasPermi="['member:member:points']">积分</el-button>
+          <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)" v-hasPermi="['member:member:query']">查看</el-button>
+          <el-button size="mini" type="text" icon="el-icon-edit" @click="handleEdit(scope.row)" v-hasPermi="['member:member:edit']">修改</el-button>
           <el-dropdown size="mini" @command="(command) => handleCommand(command, scope.row)">
             <el-button size="mini" type="text" icon="el-icon-d-arrow-right">更多</el-button>
             <el-dropdown-menu slot="dropdown">
-              <el-dropdown-item command="handleDelete" icon="el-icon-delete">删除</el-dropdown-item>
+              <el-dropdown-item command="handleDelete" icon="el-icon-delete" v-hasPermi="['member:member:remove']">删除</el-dropdown-item>
             </el-dropdown-menu>
           </el-dropdown>
         </template>
@@ -115,7 +115,7 @@
         <el-descriptions-item label="备注" :span="2">{{ detail.member.remark || '—' }}</el-descriptions-item>
       </el-descriptions>
       <div slot="footer">
-        <el-button type="primary" @click="detailToEdit">编 辑</el-button>
+        <el-button type="primary" @click="detailToEdit" v-hasPermi="['member:member:edit']">编 辑</el-button>
         <el-button @click="detailVisible=false">关 闭</el-button>
       </div>
     </el-dialog>
@@ -126,7 +126,7 @@
         会员：<b>{{ pointsMember.name }}</b>（{{ pointsMember.cardNo }}）
         当前积分：<b style="color:#409EFF">{{ pointsMember.currentPoints }}</b>
       </p>
-      <el-button type="primary" size="small" icon="el-icon-plus" @click="showAddPoints" style="margin-bottom:10px">添加积分</el-button>
+      <el-button type="primary" size="small" icon="el-icon-plus" @click="showAddPoints" style="margin-bottom:10px" v-hasPermi="['member:member:points']">添加积分</el-button>
       <el-table :data="pointsList" size="small" max-height="300">
         <el-table-column label="订单号" prop="orderNumber" width="200" :show-overflow-tooltip="true"/>
         <el-table-column label="金额" prop="amount" width="80">
