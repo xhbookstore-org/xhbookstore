@@ -39,6 +39,10 @@
         select * from book_borrow_detail where id = #{id} and is_del = 0
     </select>
 
+    <select id="selectByIdForUpdate" parameterType="Long" resultMap="BookBorrowDetailResult">
+        select * from book_borrow_detail where id = #{id} and is_del = 0 for update
+    </select>
+
     <select id="selectByOrderId" parameterType="Long" resultMap="BookBorrowDetailResult">
         select * from book_borrow_detail where borrow_order_id = #{borrowOrderId} and is_del = 0
     </select>
@@ -52,6 +56,19 @@
         update book_borrow_detail
         <set>
             <if test="returnedQty != null">returned_qty = #{returnedQty},</if>
+            <if test="borrowStatus != null">borrow_status = #{borrowStatus},</if>
+            <if test="returnAllTime != null">return_all_time = #{returnAllTime},</if>
+            <if test="lastStaffId != null">last_staff_id = #{lastStaffId},</if>
+            <if test="lastStaffName != null">last_staff_name = #{lastStaffName},</if>
+            updated_at = now()
+        </set>
+        where id = #{id}
+    </update>
+    <update id="updatePurchaseInfo" parameterType="com.xhbookstore.system.domain.book.BookBorrowDetail">
+        update book_borrow_detail
+        <set>
+            <if test="purchaseQty != null">purchase_qty = #{purchaseQty},</if>
+            <if test="purchaseOrderNo != null">purchase_order_no = #{purchaseOrderNo},</if>
             <if test="borrowStatus != null">borrow_status = #{borrowStatus},</if>
             <if test="returnAllTime != null">return_all_time = #{returnAllTime},</if>
             <if test="lastStaffId != null">last_staff_id = #{lastStaffId},</if>

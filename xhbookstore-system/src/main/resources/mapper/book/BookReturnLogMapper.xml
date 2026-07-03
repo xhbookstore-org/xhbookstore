@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.book.BookReturnLogMapper">
+    <insert id="insert" parameterType="map">
+        insert into book_return_log (trace_id, return_detail_id, return_order_no, borrow_order_id,
+            borrow_order_no, borrow_detail_id, log_type, before_data, after_data, change_fields,
+            staff_id, staff_name, client_ip, created_at)
+        values (#{traceId}, #{returnDetailId}, #{returnOrderNo}, #{borrowOrderId},
+            #{borrowOrderNo}, #{borrowDetailId}, #{logType}, #{beforeData}, #{afterData}, #{changeFields},
+            #{staffId}, #{staffName}, #{clientIp}, now())
+    </insert>
+</mapper>

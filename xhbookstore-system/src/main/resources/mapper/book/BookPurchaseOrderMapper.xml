@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.book.BookPurchaseOrderMapper">
+
+    <insert id="insert" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        insert into dd_book_purchase_order (order_no, borrow_order_id, borrow_order_no, borrow_detail_id,
+            member_id, member_card_no, member_name, order_type, payment_type, book_id, book_name,
+            qty, unit_price, discount_price, receivable_amount, paid_amount, points_deduct,
+            order_status, pay_time, remark, dept_id, create_staff_id, create_staff_name,
+            update_staff_id, update_staff_name, created_at)
+        values (#{orderNo}, #{borrowOrderId}, #{borrowOrderNo}, #{borrowDetailId},
+            #{memberId}, #{memberCardNo}, #{memberName}, #{orderType}, #{paymentType}, #{bookId}, #{bookName},
+            #{qty}, #{unitPrice}, #{discountPrice}, #{receivableAmount}, #{paidAmount}, #{pointsDeduct},
+            #{orderStatus}, now(), #{remark}, #{deptId}, #{staffId}, #{staffName},
+            #{staffId}, #{staffName}, now())
+    </insert>
+</mapper>
