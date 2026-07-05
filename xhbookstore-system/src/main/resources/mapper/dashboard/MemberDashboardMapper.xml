@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.dashboard.MemberDashboardMapper">
+
+    <resultMap id="DeptStatsResult" type="com.xhbookstore.system.domain.dashboard.MemberDashboardDeptStats">
+        <id property="deptId" column="dept_id"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="totalMembers" column="total_members"/>
+        <result property="borrowCardMembers" column="borrow_card_members"/>
+        <result property="normalMembers" column="normal_members"/>
+        <result property="unitBorrowCardMembers" column="unit_borrow_card_members"/>
+        <result property="naturalBorrowCardMembers" column="natural_borrow_card_members"/>
+        <result property="yearCardMembers" column="year_card_members"/>
+        <result property="unitYearCardMembers" column="unit_year_card_members"/>
+        <result property="naturalYearCardMembers" column="natural_year_card_members"/>
+        <result property="halfYearCardMembers" column="half_year_card_members"/>
+        <result property="unitHalfYearCardMembers" column="unit_half_year_card_members"/>
+        <result property="naturalHalfYearCardMembers" column="natural_half_year_card_members"/>
+        <result property="totalMemberCodeShowCount" column="total_member_code_show_count"/>
+        <result property="yearMemberCodeShowCount" column="year_member_code_show_count"/>
+        <result property="monthMemberCodeShowCount" column="month_member_code_show_count"/>
+        <result property="yesterdayMemberCodeShowCount" column="yesterday_member_code_show_count"/>
+    </resultMap>
+
+    <select id="selectDeptMemberStats" resultMap="DeptStatsResult">
+        select
+            m.dept_id,
+            max(d.dept_name) as dept_name,
+            count(distinct m.id) as total_members,
+            count(distinct case when ac.member_id is not null then m.id end) as borrow_card_members,
+            count(distinct m.id) - count(distinct case when ac.member_id is not null then m.id end) as normal_members,
+            count(distinct case when ac.member_id is not null and trim(coalesce(m.remark, '')) != '' then m.id end) as unit_borrow_card_members,
+            count(distinct case when ac.member_id is not null and trim(coalesce(m.remark, '')) = '' then m.id end) as natural_borrow_card_members,
+            count(distinct case when ac.valid_days &gt;= 365 then m.id end) as year_card_members,
+            count(distinct case when ac.valid_days &gt;= 365 and trim(coalesce(m.remark, '')) != '' then m.id end) as unit_year_card_members,
+            count(distinct case when ac.valid_days &gt;= 365 and trim(coalesce(m.remark, '')) = '' then m.id end) as natural_year_card_members,
+            count(distinct case when ac.valid_days &gt;= 180 and ac.valid_days &lt; 365 then m.id end) as half_year_card_members,
+            count(distinct case when ac.valid_days &gt;= 180 and ac.valid_days &lt; 365 and trim(coalesce(m.remark, '')) != '' then m.id end) as unit_half_year_card_members,
+            count(distinct case when ac.valid_days &gt;= 180 and ac.valid_days &lt; 365 and trim(coalesce(m.remark, '')) = '' then m.id end) as natural_half_year_card_members
+        from member m
+        left join sys_dept d on d.dept_id = m.dept_id
+        left join (
+            select member_id, max(valid_days) as valid_days
+            from member_card
+            where status = 1 and is_del = 0
+            group by member_id
+        ) ac on ac.member_id = m.id
+        where m.status = 0
+        group by m.dept_id
+    </select>
+
+    <select id="selectDeptMemberCodeStats" resultMap="DeptStatsResult">
+        select
+            m.dept_id,
+            max(d.dept_name) as dept_name,
+            count(1) as total_member_code_show_count,
+            sum(case when l.created_at &gt;= date_format(curdate(), '%Y-01-01') then 1 else 0 end) as year_member_code_show_count,
+            sum(case when l.created_at &gt;= date_format(curdate(), '%Y-%m-01') then 1 else 0 end) as month_member_code_show_count,
+            sum(case when l.created_at &gt;= date_sub(curdate(), interval 1 day) and l.created_at &lt; curdate() then 1 else 0 end) as yesterday_member_code_show_count
+        from xhbs_api_log l
+        inner join member m on l.user_id = concat('M', m.id)
+        left join sys_dept d on d.dept_id = m.dept_id
+        where l.request_uri = '/api/mp/v1/user/member-code'
+          and l.response_code = 0
+        group by m.dept_id
+    </select>
+
+    <select id="selectLoginStats" resultType="com.xhbookstore.system.domain.dashboard.MemberDashboardLoginStats">
+        select
+            count(1) as totalLoginCount,
+            sum(case when created_at &gt;= date_format(curdate(), '%Y-01-01') then 1 else 0 end) as yearLoginCount,
+            sum(case when created_at &gt;= date_format(curdate(), '%Y-%m-01') then 1 else 0 end) as monthLoginCount,
+            sum(case when created_at &gt;= date_sub(curdate(), interval 1 day) and created_at &lt; curdate() then 1 else 0 end) as yesterdayLoginCount
+        from xhbs_api_log
+        where request_uri = '/api/mp/v1/auth/wechat-phone-login'
+          and response_code = 0
+    </select>
+</mapper>

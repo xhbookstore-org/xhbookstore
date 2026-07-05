@@ -3,6 +3,7 @@ package com.xhbookstore;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 启动程序
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
  * @author xhbookstore
  */
 @SpringBootApplication(exclude = { DataSourceAutoConfiguration.class })
+@EnableScheduling
 public class XhBookstoreApplication
 {
     public static void main(String[] args)
