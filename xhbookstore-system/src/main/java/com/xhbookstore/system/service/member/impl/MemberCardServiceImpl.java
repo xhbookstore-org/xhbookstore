@@ -93,8 +93,8 @@ public class MemberCardServiceImpl implements IMemberCardService {
 
         MemberCard active = memberCardMapper.selectActiveByMemberIdForUpdate(memberId);
         boolean activateNow = active == null;
-        Date effectiveAt = activateNow ? now : null;
-        Date expiredAt = activateNow ? addDays(effectiveAt, cardType.getValidDays()) : null;
+        Date effectiveAt = activateNow ? now : nextCardStartAt(memberId, active, now);
+        Date expiredAt = addDays(effectiveAt, cardType.getValidDays());
 
         MemberCard card = new MemberCard();
         card.setMemberId(member.getId());
@@ -133,6 +133,9 @@ public class MemberCardServiceImpl implements IMemberCardService {
         data.put("paidAmount", paid);
         data.put("effectiveAt", millis(effectiveAt));
         data.put("expiredAt", millis(expiredAt));
+        data.put("expectedEffectiveAt", millis(effectiveAt));
+        data.put("expectedExpiredAt", millis(expiredAt));
+        data.put("remark", remark);
         return AjaxResult.success(data);
     }
 
@@ -215,8 +218,8 @@ public class MemberCardServiceImpl implements IMemberCardService {
         }
         MemberCard pending = memberCardMapper.selectNextPendingByMemberIdForUpdate(memberId);
         if (pending != null) {
-            Date effectiveAt = nextStart.after(now) ? nextStart : now;
-            Date expiredAt = addDays(effectiveAt, pending.getValidDays());
+            Date effectiveAt = pending.getEffectiveAt() != null ? pending.getEffectiveAt() : nextStart;
+            Date expiredAt = pending.getExpiredAt() != null ? pending.getExpiredAt() : addDays(effectiveAt, pending.getValidDays());
             MemberCard before = copyCard(pending);
             memberCardMapper.activate(pending.getId(), effectiveAt, expiredAt);
             MemberCard after = memberCardMapper.selectById(pending.getId());
@@ -300,6 +303,20 @@ public class MemberCardServiceImpl implements IMemberCardService {
         cal.setTime(date);
         cal.add(Calendar.DAY_OF_YEAR, days);
         return cal.getTime();
+    }
+
+    private Date nextCardStartAt(Integer memberId, MemberCard active, Date now) {
+        Date startAt = active != null && active.getExpiredAt() != null && active.getExpiredAt().after(now)
+                ? active.getExpiredAt()
+                : now;
+        List<MemberCard> cards = memberCardMapper.selectByMemberId(memberId);
+        if (cards == null) return startAt;
+        for (MemberCard card : cards) {
+            if (STATUS_PENDING == safeStatus(card) && card.getExpiredAt() != null && card.getExpiredAt().after(startAt)) {
+                startAt = card.getExpiredAt();
+            }
+        }
+        return startAt;
     }
 
     private Long millis(Date date) {

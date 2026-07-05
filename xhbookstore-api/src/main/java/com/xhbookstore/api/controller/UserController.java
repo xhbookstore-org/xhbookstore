@@ -24,6 +24,7 @@ import com.xhbookstore.system.service.book.IBookBorrowService;
 @RestController
 @RequestMapping("/api/mp/v1/user")
 public class UserController {
+    private static final int MEMBER_CODE_TOKEN_TTL_SECONDS = 3600;
 
     @Autowired
     private IMemberService memberService;
@@ -117,14 +118,14 @@ public class UserController {
         }
 
         com.xhbookstore.system.domain.member.MemberCodeTokenInfo tokenInfo =
-                memberCodeTokenService.createToken(memberId, "BUY_CARD", 60);
+                memberCodeTokenService.createToken(memberId, "BUY_CARD", MEMBER_CODE_TOKEN_TTL_SECONDS);
         String memberNo = member.getCardNo();
         Map<String, Object> data = new HashMap<>();
         data.put("memberNo", memberNo);
         data.put("memberCodeToken", tokenInfo.getToken());
         data.put("codeContent", "MCODE:" + tokenInfo.getToken());
         data.put("expiresAt", tokenInfo.getExpiresAt());
-        data.put("ttlSeconds", 60);
+        data.put("ttlSeconds", MEMBER_CODE_TOKEN_TTL_SECONDS);
         return ApiResponse.success(data);
     }
 
@@ -149,27 +150,26 @@ public class UserController {
             @RequestParam(defaultValue = "1") int pageNo,
             @RequestParam(defaultValue = "20") int pageSize,
             HttpServletRequest request) {
-        // TODO: 从Token获取memberId，当前用固定值
-        Integer memberId = 1;
+        Integer memberId = currentMemberId(request);
         List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(memberId);
+        if (orders == null) orders = Collections.emptyList();
         List<Map<String, Object>> records = new ArrayList<>();
+        int currentBorrowingCount = 0;
         for (BookBorrowOrder o : orders) {
-            Map<String, Object> r = new HashMap<>();
-            r.put("orderNo", o.getOrderNo());
-            r.put("totalBookCount", o.getTotalBookCount());
-            r.put("borrowStatus", o.getBorrowStatus());
-            r.put("borrowTime", o.getBorrowTime() != null ? o.getBorrowTime().getTime() : null);
             List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
-            r.put("details", details);
-            records.add(r);
+            if (details == null) continue;
+            for (BookBorrowDetail d : details) {
+                records.add(buildBorrowItem(o, d));
+                currentBorrowingCount += Math.max(0, remainingQty(d));
+            }
         }
 
         String phone = (String) request.getAttribute("phone");
         Map<String, Object> data = new HashMap<>();
         data.put("memberDisplay", maskPhone(phone));
         data.put("yearBorrowCount", orders.size());
-        data.put("currentBorrowingCount", orders.stream().filter(o -> o.getBorrowStatus() != null && o.getBorrowStatus() != 2 && o.getBorrowStatus() != 5).count());
-        data.put("page", new PageResult<>(records, pageNo, pageSize, records.size()));
+        data.put("currentBorrowingCount", currentBorrowingCount);
+        data.put("page", page(records, pageNo, pageSize));
         return ApiResponse.success(data);
     }
 
@@ -177,16 +177,27 @@ public class UserController {
      * 查询借阅详情 §11.4
      */
     @Operation(summary = "查询借阅详情", description = "按借阅单号查询完整订单+明细+还书记录")
-    @GetMapping("/borrows/{borrowId}")
-    public ApiResponse<Map<String, Object>> borrowDetail(@PathVariable String borrowId) {
-        BookBorrowOrder order = bookBorrowService.selectOrderByNo(borrowId);
-        if (order == null) return ApiResponse.success(new HashMap<>());
-        List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(order.getId());
-        List<BookReturnDetail> returns = bookBorrowService.selectReturnsByOrderId(order.getId());
+    @GetMapping("/borrows/{detailId}")
+    public ApiResponse<Map<String, Object>> borrowDetail(@PathVariable String detailId, HttpServletRequest request) {
+        Integer memberId = currentMemberId(request);
+        BookBorrowDetail detail = bookBorrowService.selectDetailById(parseLong(detailId, "detailId"));
+        if (detail == null) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.NOT_FOUND,
+                    "Borrow detail not found");
+        }
+        if (detail.getMemberId() == null || !detail.getMemberId().equals(memberId)) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.FORBIDDEN,
+                    "No permission to view this borrow detail");
+        }
+        BookBorrowOrder order = bookBorrowService.selectOrderByNo(detail.getBorrowOrderNo());
+        List<BookReturnDetail> returns = order != null ? bookBorrowService.selectReturnsByOrderId(order.getId()) : Collections.emptyList();
         Map<String, Object> data = new HashMap<>();
         data.put("order", order);
-        data.put("details", details);
-        data.put("returns", returns);
+        data.put("detail", detail);
+        data.put("item", buildBorrowItem(order, detail));
+        data.put("returns", filterReturns(returns, detail.getId()));
         return ApiResponse.success(data);
     }
 
@@ -199,9 +210,13 @@ public class UserController {
             @RequestParam(defaultValue = "1") int pageNo,
             @RequestParam(defaultValue = "20") int pageSize,
             HttpServletRequest request) {
-        // TODO: 关联当前用户memberId
-        List<PointsOrder> orders = pointsService.selectByMemberId(1);
+        Integer memberId = currentMemberId(request);
+        Member member = memberService.selectMemberById(memberId);
+        List<PointsOrder> orders = pointsService.selectByMemberId(memberId);
+        if (orders == null) orders = Collections.emptyList();
         List<Map<String, Object>> records = new ArrayList<>();
+        int yearEarnedPoints = 0;
+        Calendar now = Calendar.getInstance();
         for (PointsOrder o : orders) {
             Map<String, Object> r = new HashMap<>();
             r.put("pointsRecordId", o.getOrderNumber());
@@ -212,13 +227,20 @@ public class UserController {
             r.put("afterPoints", o.getAfterPoints());
             r.put("operatedAt", o.getCreatedAt().getTime());
             records.add(r);
+            if (o.getOrderNumber() != null && o.getOrderNumber().startsWith("IN") && o.getCreatedAt() != null) {
+                Calendar created = Calendar.getInstance();
+                created.setTime(o.getCreatedAt());
+                if (created.get(Calendar.YEAR) == now.get(Calendar.YEAR) && o.getAmount() != null) {
+                    yearEarnedPoints += o.getAmount();
+                }
+            }
         }
         String phone2 = (String) request.getAttribute("phone");
         Map<String, Object> data = new HashMap<>();
         data.put("memberDisplay", maskPhone(phone2));
-        data.put("currentPoints", 100);
-        data.put("yearEarnedPoints", 50);
-        data.put("page", new PageResult<>(records, pageNo, pageSize, records.size()));
+        data.put("currentPoints", member != null && member.getCurrentPoints() != null ? member.getCurrentPoints() : 0);
+        data.put("yearEarnedPoints", yearEarnedPoints);
+        data.put("page", page(records, pageNo, pageSize));
         return ApiResponse.success(data);
     }
 
@@ -236,5 +258,77 @@ public class UserController {
     private String maskPhone(String phone) {
         if (phone == null || phone.length() < 7) return phone != null ? phone : "";
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
+    }
+
+    private Integer currentMemberId(HttpServletRequest request) {
+        Object memberIdObj = request.getAttribute("memberId");
+        if (memberIdObj == null) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.MEMBER_NOT_FOUND,
+                    "仅会员可访问");
+        }
+        return Integer.valueOf(memberIdObj.toString());
+    }
+
+    private <T> PageResult<T> page(List<T> records, int pageNo, int pageSize) {
+        int safePageNo = Math.max(pageNo, 1);
+        int safePageSize = Math.max(pageSize, 1);
+        int from = Math.min((safePageNo - 1) * safePageSize, records.size());
+        int to = Math.min(from + safePageSize, records.size());
+        return new PageResult<>(records.subList(from, to), safePageNo, safePageSize, records.size());
+    }
+
+    private Map<String, Object> buildBorrowItem(BookBorrowOrder o, BookBorrowDetail d) {
+        Map<String, Object> item = new HashMap<>();
+        item.put("detailId", d.getId());
+        item.put("borrowDetailId", d.getId());
+        item.put("orderNo", d.getBorrowOrderNo());
+        item.put("memberId", d.getMemberId());
+        item.put("bookId", d.getBookId());
+        item.put("bookName", d.getBookName());
+        item.put("borrowStatus", d.getBorrowStatus() != null ? d.getBorrowStatus() : 0);
+        item.put("borrowQty", d.getBorrowQty() != null ? d.getBorrowQty() : 0);
+        item.put("returnedQty", d.getReturnedQty() != null ? d.getReturnedQty() : 0);
+        item.put("purchaseQty", d.getPurchaseQty() != null ? d.getPurchaseQty() : 0);
+        item.put("remainingQty", remainingQty(d));
+        item.put("purchaseOrderNo", d.getPurchaseOrderNo());
+        item.put("borrowTime", timeMillis(d.getBorrowTime()));
+        item.put("returnAllTime", d.getReturnAllTime() != null ? timeMillis(d.getReturnAllTime())
+                : (o != null ? timeMillis(o.getReturnAllTime()) : null));
+        item.put("expectedReturnTime", o != null ? timeMillis(o.getExpectedReturnTime()) : null);
+        item.put("remark", d.getRemark() != null ? d.getRemark() : (o != null ? o.getRemark() : null));
+        return item;
+    }
+
+    private List<BookReturnDetail> filterReturns(List<BookReturnDetail> returns, Long detailId) {
+        List<BookReturnDetail> list = new ArrayList<>();
+        if (returns == null) return list;
+        for (BookReturnDetail r : returns) {
+            if (r.getBorrowDetailId() != null && r.getBorrowDetailId().equals(detailId)) {
+                list.add(r);
+            }
+        }
+        return list;
+    }
+
+    private int remainingQty(BookBorrowDetail d) {
+        int b = d.getBorrowQty() != null ? d.getBorrowQty() : 0;
+        int r = d.getReturnedQty() != null ? d.getReturnedQty() : 0;
+        int p = d.getPurchaseQty() != null ? d.getPurchaseQty() : 0;
+        return b - r - p;
+    }
+
+    private Long parseLong(String value, String fieldName) {
+        try {
+            return Long.valueOf(value);
+        } catch (Exception e) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.PARAM_INVALID,
+                    fieldName + " must be a number");
+        }
+    }
+
+    private Long timeMillis(Date date) {
+        return date != null ? Long.valueOf(date.getTime()) : null;
     }
 }

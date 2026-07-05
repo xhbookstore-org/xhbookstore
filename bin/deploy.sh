@@ -15,8 +15,23 @@ PROJECT_DIR="/www/server/java/projects"
 VERSIONS_DIR="$PROJECT_DIR/versions"
 UI_DIR="/www/wwwroot/xhbookstore-ui"
 
-ADMIN_SERVICE="xhbookstore-admin"
-API_SERVICE="xhbookstore-api"
+ADMIN_PROJECT="xhbookstore-admin"
+API_PROJECT="xhbookstore-api"
+JAVA_SERVICE_BIN="/usr/bin/java-service"
+
+restart_backend_services() {
+  if [ ! -x "$JAVA_SERVICE_BIN" ]; then
+    echo "[deploy] java-service not found: $JAVA_SERVICE_BIN"
+    exit 1
+  fi
+
+  "$JAVA_SERVICE_BIN" "$ADMIN_PROJECT" restart
+  "$JAVA_SERVICE_BIN" "$API_PROJECT" restart
+  sleep 4
+
+  "$JAVA_SERVICE_BIN" "$ADMIN_PROJECT" start
+  "$JAVA_SERVICE_BIN" "$API_PROJECT" start
+}
 
 # ---- 初始化 ----
 init() {
@@ -72,14 +87,13 @@ MEOF
   rm -f "$tmp"/*.jar "$tmp"/dist.zip
 
   # 重启服务
-  systemctl restart "$ADMIN_SERVICE" "$API_SERVICE" 2>/dev/null || true
-  sleep 4
+  restart_backend_services
 
   echo ""
   echo "========================================"
   echo "  ✅ 已部署版本: $version"
   echo "========================================"
-  systemctl is-active "$ADMIN_SERVICE" "$API_SERVICE"
+  systemctl is-active "spring_$ADMIN_PROJECT" "spring_$API_PROJECT"
 }
 
 # ---- 列出所有版本 ----
@@ -125,14 +139,13 @@ rollback() {
     unzip -oq "$vdir/ui.zip" -d "$UI_DIR/"
   fi
 
-  systemctl restart "$ADMIN_SERVICE" "$API_SERVICE" 2>/dev/null || true
-  sleep 4
+  restart_backend_services
 
   echo ""
   echo "========================================"
   echo "  ✅ 已回滚到: $target"
   echo "========================================"
-  systemctl is-active "$ADMIN_SERVICE" "$API_SERVICE"
+  systemctl is-active "spring_$ADMIN_PROJECT" "spring_$API_PROJECT"
 }
 
 # ---- 当前版本 ----

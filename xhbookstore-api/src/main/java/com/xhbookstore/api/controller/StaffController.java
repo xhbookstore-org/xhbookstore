@@ -79,7 +79,7 @@ public class StaffController {
         Integer cardTypeId=body.get("cardTypeId")!=null?Integer.valueOf(body.get("cardTypeId").toString()):null;
         if(cardTypeId==null) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Card type is required");
         AjaxResult result=memberCardService.buyCard(tokenMember.getId(),cardTypeId,toBigDecimal(body.get("paidAmount")),
-                stringValue(body.get("paymentType")),getStaffId(request),"staff",null,stringValue(body.get("remark")));
+                stringValue(body.get("paymentType")),getStaffId(request),"staff",null,requestRemark(body));
         if(result.isError()) throw new ApiException(ApiErrorCode.PARAM_INVALID,String.valueOf(result.get("msg")));
         return ApiResponse.success((Map<String,Object>)result.get("data"));
     }
@@ -113,7 +113,7 @@ public class StaffController {
         AjaxResult result;
         try {
             result=memberCardService.buyCardByToken(memberCodeToken,cardTypeId,paidAmount,
-                    stringValue(body.get("paymentType")),getStaffId(request),"staff",null,stringValue(body.get("remark")));
+                    stringValue(body.get("paymentType")),getStaffId(request),"staff",null,requestRemark(body));
         } catch (IllegalArgumentException e) {
             throw new ApiException(ApiErrorCode.PARAM_INVALID,e.getMessage());
         }
@@ -137,11 +137,19 @@ public class StaffController {
     public ApiResponse<Map<String,Object>> borrowsList(@RequestParam(required=false) String phone,@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int pageNo,@RequestParam(defaultValue="20") int pageSize){ Map<String,Object> data=new HashMap<>(); data.put("page",new PageResult<>(Collections.emptyList(),pageNo,pageSize,0)); return ApiResponse.success(data); }
 
     @Operation(summary = "Borrow detail")
-    @GetMapping("/borrows/{borrowId}")
-    public ApiResponse<Map<String,Object>> borrowDetail(@PathVariable String borrowId){
-        BookBorrowOrder order=bookBorrowService.selectOrderByNo(borrowId); if(order==null) throw new ApiException(ApiErrorCode.NOT_FOUND,"Borrow order not found");
-        List<Map<String,Object>> items=new ArrayList<>(); for(BookBorrowDetail d:bookBorrowService.selectDetailsByOrderId(order.getId())) items.add(buildFlatItem(order,d));
-        Map<String,Object> data=new HashMap<>(); data.put("items",items); data.put("orderNo",order.getOrderNo()); data.put("borrowTime",order.getBorrowTime()!=null?order.getBorrowTime().getTime():null); return ApiResponse.success(data);
+    @GetMapping("/borrows/{detailId}")
+    public ApiResponse<Map<String,Object>> borrowDetail(@PathVariable String detailId){
+        BookBorrowDetail detail=bookBorrowService.selectDetailById(parseLong(detailId,"detailId"));
+        if(detail==null) throw new ApiException(ApiErrorCode.NOT_FOUND,"Borrow detail not found");
+        BookBorrowOrder order=bookBorrowService.selectOrderByNo(detail.getBorrowOrderNo());
+        List<BookReturnDetail> returns=order!=null?bookBorrowService.selectReturnsByOrderId(order.getId()):Collections.emptyList();
+        Map<String,Object> data=new HashMap<>();
+        data.put("item",buildFlatItem(order,detail));
+        data.put("order",order);
+        data.put("returns",filterReturns(returns,detail.getId()));
+        data.put("orderNo",detail.getBorrowOrderNo());
+        data.put("borrowTime",detail.getBorrowTime()!=null?detail.getBorrowTime().getTime():null);
+        return ApiResponse.success(data);
     }
 
     @SuppressWarnings("unchecked")
@@ -195,11 +203,15 @@ public class StaffController {
 
     private Map<String,Object> buildMemberCard(Member m){ Map<String,Object> card=new HashMap<>(); card.put("cardTypeId",m.getCardTypeId()); card.put("cardTypeName",m.getCardTypeName()); card.put("memberNo",m.getCardNo()); card.put("cardStatus",m.getStatus()!=null&&m.getStatus()==0?"active":"inactive"); card.put("level",m.getLevelId()); card.put("remainingDays",m.getValidDate()!=null?Math.max(0,(m.getValidDate().getTime()-System.currentTimeMillis())/86400000L):0); card.put("effectiveAt",m.getCreatedAt()!=null?m.getCreatedAt().getTime():null); card.put("expiredAt",m.getValidDate()!=null?m.getValidDate().getTime():null); return card; }
     private List<Map<String,Object>> flattenBorrowDetails(List<BookBorrowOrder> orders,String mode){ List<Map<String,Object>> list=new ArrayList<>(); if(orders==null) return list; for(BookBorrowOrder o:orders){ List<BookBorrowDetail> ds=bookBorrowService.selectDetailsByOrderId(o.getId()); for(BookBorrowDetail d:ds){ if("borrowing".equals(mode)&&remainingQty(d)<=0) continue; list.add(buildFlatItem(o,d)); } } return list; }
-    private Map<String,Object> buildFlatItem(BookBorrowOrder o,BookBorrowDetail d){ Map<String,Object> item=new HashMap<>(); item.put("detailId",d.getId()); item.put("orderNo",o.getOrderNo()); item.put("memberId",o.getMemberId()); item.put("bookId",d.getBookId()); item.put("bookName",d.getBookName()); item.put("borrowStatus",d.getBorrowStatus()!=null?d.getBorrowStatus():0); item.put("borrowQty",d.getBorrowQty()!=null?d.getBorrowQty():0); item.put("returnedQty",d.getReturnedQty()!=null?d.getReturnedQty():0); item.put("purchaseQty",d.getPurchaseQty()!=null?d.getPurchaseQty():0); item.put("remainingQty",remainingQty(d)); item.put("purchaseOrderNo",d.getPurchaseOrderNo()); item.put("borrowTime",d.getBorrowTime()!=null?d.getBorrowTime().getTime():null); item.put("returnAllTime",o.getReturnAllTime()!=null?o.getReturnAllTime().getTime():null); item.put("remark",o.getRemark()); return item; }
+    private Map<String,Object> buildFlatItem(BookBorrowOrder o,BookBorrowDetail d){ Map<String,Object> item=new HashMap<>(); item.put("detailId",d.getId()); item.put("borrowDetailId",d.getId()); item.put("orderNo",d.getBorrowOrderNo()); item.put("memberId",d.getMemberId()); item.put("bookId",d.getBookId()); item.put("bookName",d.getBookName()); item.put("borrowStatus",d.getBorrowStatus()!=null?d.getBorrowStatus():0); item.put("borrowQty",d.getBorrowQty()!=null?d.getBorrowQty():0); item.put("returnedQty",d.getReturnedQty()!=null?d.getReturnedQty():0); item.put("purchaseQty",d.getPurchaseQty()!=null?d.getPurchaseQty():0); item.put("remainingQty",remainingQty(d)); item.put("purchaseOrderNo",d.getPurchaseOrderNo()); item.put("borrowTime",timeMillis(d.getBorrowTime())); item.put("returnAllTime",d.getReturnAllTime()!=null?timeMillis(d.getReturnAllTime()):(o!=null?timeMillis(o.getReturnAllTime()):null)); item.put("expectedReturnTime",o!=null?timeMillis(o.getExpectedReturnTime()):null); item.put("remark",d.getRemark()!=null?d.getRemark():(o!=null?o.getRemark():null)); return item; }
+    private List<BookReturnDetail> filterReturns(List<BookReturnDetail> returns,Long detailId){ List<BookReturnDetail> list=new ArrayList<>(); if(returns==null) return list; for(BookReturnDetail r:returns){ if(r.getBorrowDetailId()!=null&&r.getBorrowDetailId().equals(detailId)) list.add(r); } return list; }
     private String getStaffId(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); return attr!=null?String.valueOf(attr):"system"; }
     private int remainingQty(BookBorrowDetail d){ int b=d.getBorrowQty()!=null?d.getBorrowQty():0; int r=d.getReturnedQty()!=null?d.getReturnedQty():0; int p=d.getPurchaseQty()!=null?d.getPurchaseQty():0; return b-r-p; }
+    private Long parseLong(String v,String fieldName){ try{return Long.valueOf(v);}catch(Exception e){ throw new ApiException(ApiErrorCode.PARAM_INVALID,fieldName+" must be a number"); } }
     private int parseInt(Object v,int def){ if(v==null) return def; return Integer.parseInt(v.toString()); }
     private String stringValue(Object v){ return v!=null?String.valueOf(v):null; }
+    private String requestRemark(Map<String,Object> body){ String v=stringValue(body.get("remark")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("remarks")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("memo")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("note")); return v!=null?v.trim():null; }
     private BigDecimal toBigDecimal(Object v){ return v!=null&&String.valueOf(v).trim().length()>0?new BigDecimal(String.valueOf(v)):null; }
+    private Long timeMillis(Date date){ return date!=null?Long.valueOf(date.getTime()):null; }
     private String maskPhone(String phone){ if(phone==null||phone.length()<7) return phone; return phone.substring(0,3)+"****"+phone.substring(phone.length()-4); }
 }
