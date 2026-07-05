@@ -1,6 +1,7 @@
 package com.xhbookstore.web.controller.member;
 
 import java.util.List;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -10,8 +11,10 @@ import com.xhbookstore.common.enums.BusinessType;
 import com.xhbookstore.common.core.controller.BaseController;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.common.core.page.TableDataInfo;
+import com.xhbookstore.common.utils.poi.ExcelUtil;
 import com.xhbookstore.system.domain.member.CardType;
 import com.xhbookstore.system.domain.member.Member;
+import com.xhbookstore.system.domain.member.MemberExport;
 import com.xhbookstore.system.domain.member.MemberExt;
 import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.mapper.member.CardTypeMapper;
@@ -104,12 +107,24 @@ public class MemberController extends BaseController {
                 getLoginUser().getUsername(), "PC");
     }
 
+    @PreAuthorize("@ss.hasPermi('member:member:import')")
+    @Log(title = "会员导入", businessType = BusinessType.IMPORT)
+    @PostMapping("/importData")
+    public AjaxResult importData(@RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+                                 @RequestParam(required = false) Long deptId) throws Exception {
+        if (deptId == null) {
+            deptId = getLoginUser().getDeptId();
+        }
+        return memberService.importMembers(file, deptId, getUsername());
+    }
+
     @PreAuthorize("@ss.hasPermi('member:member:export')")
     @Log(title = "会员管理", businessType = BusinessType.EXPORT)
     @DataScope(deptAlias = "m")
-    @GetMapping("/export")
-    public AjaxResult export(Member member) {
-        List<Member> list = memberService.selectMemberListForExport(member);
-        return AjaxResult.success(list);
+    @PostMapping("/export")
+    public void export(HttpServletResponse response, Member member) {
+        List<MemberExport> list = memberService.selectMemberExportList(member);
+        ExcelUtil<MemberExport> util = new ExcelUtil<MemberExport>(MemberExport.class);
+        util.exportExcel(response, list, "现有会员明细");
     }
 }

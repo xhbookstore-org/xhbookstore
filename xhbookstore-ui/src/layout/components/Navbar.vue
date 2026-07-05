@@ -11,26 +11,12 @@
     <div class="right-menu">
       <template v-if="device!=='mobile'">
         <search id="header-search" class="right-menu-item" />
-
-        <el-tooltip content="源码地址" effect="dark" placement="bottom">
-          <xh-bookstore-git id="xhbookstore-git" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-        <el-tooltip content="文档地址" effect="dark" placement="bottom">
-          <xh-bookstore-doc id="xhbookstore-doc" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-        <screenfull id="screenfull" class="right-menu-item hover-effect" />
-
-        <el-tooltip content="布局大小" effect="dark" placement="bottom">
-          <size-select id="size-select" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-        <el-tooltip content="消息通知" effect="dark" placement="bottom">
-          <header-notice id="header-notice" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
       </template>
+
+      <div v-if="deptName" class="dept-badge" :title="deptName">
+        <i class="el-icon-office-building"></i>
+        <span>{{ deptName }}</span>
+      </div>
 
       <el-dropdown class="avatar-container right-menu-item hover-effect" trigger="hover">
         <div class="avatar-wrapper">
@@ -41,9 +27,6 @@
           <router-link to="/user/profile">
             <el-dropdown-item>个人中心</el-dropdown-item>
           </router-link>
-          <el-dropdown-item @click.native="setLayout" v-if="setting">
-            <span>布局设置</span>
-          </el-dropdown-item>
           <el-dropdown-item @click.native="lockScreen">
             <span>锁定屏幕</span>
           </el-dropdown-item>
@@ -63,12 +46,7 @@ import TopNav from './TopNav'
 import TopBar from './TopBar'
 import Logo from './Sidebar/Logo'
 import Hamburger from '@/components/Hamburger'
-import Screenfull from '@/components/Screenfull'
-import SizeSelect from '@/components/SizeSelect'
 import Search from '@/components/HeaderSearch'
-import XhBookstoreGit from '@/components/XhBookstore/Git'
-import XhBookstoreDoc from '@/components/XhBookstore/Doc'
-import HeaderNotice from './HeaderNotice'
 
 export default {
   components: {
@@ -77,19 +55,15 @@ export default {
     TopNav,
     TopBar,
     Hamburger,
-    Screenfull,
-    SizeSelect,
-    Search,
-    XhBookstoreGit,
-    XhBookstoreDoc,
-    HeaderNotice
+    Search
   },
   computed: {
     ...mapGetters([
       'sidebar',
       'avatar',
       'device',
-      'nickName'
+      'nickName',
+      'deptName'
     ]),
     setting: {
       get() {
@@ -213,6 +187,34 @@ export default {
         &:hover {
           background: rgba(0, 0, 0, .025)
         }
+      }
+    }
+
+    .dept-badge {
+      display: inline-flex;
+      align-items: center;
+      max-width: 220px;
+      height: 30px;
+      margin: 0 10px 0 4px;
+      padding: 0 12px;
+      line-height: 30px;
+      color: #0f5fb8;
+      background: linear-gradient(90deg, #e8f3ff 0%, #f4f9ff 100%);
+      border: 1px solid #8cc5ff;
+      border-radius: 15px;
+      box-shadow: 0 2px 8px rgba(64, 158, 255, 0.14);
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+
+      i {
+        margin-right: 6px;
+        font-size: 15px;
+      }
+
+      span {
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
     }
 

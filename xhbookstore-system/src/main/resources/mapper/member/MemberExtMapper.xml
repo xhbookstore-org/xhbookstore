@@ -37,10 +37,20 @@
     <update id="updateMemberExt" parameterType="com.xhbookstore.system.domain.member.MemberExt">
         update member_ext
         <set>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="age != null">age = #{age},</if>
+            <if test="unitPhone != null">unit_phone = #{unitPhone},</if>
+            <if test="wechat != null">wechat = #{wechat},</if>
+            <if test="weibo != null">weibo = #{weibo},</if>
             <if test="joinDate != null">join_date = #{joinDate},</if>
             <if test="totalPoints != null">total_points = #{totalPoints},</if>
             <if test="levelPoints != null">level_points = #{levelPoints},</if>
             <if test="discount != null">discount = #{discount},</if>
+            <if test="totalPurchaseAmount != null">total_purchase_amount = #{totalPurchaseAmount},</if>
+            <if test="totalPurchaseCount != null">total_purchase_count = #{totalPurchaseCount},</if>
+            <if test="totalPurchaseTimes != null">total_purchase_times = #{totalPurchaseTimes},</if>
+            <if test="superiorName != null">superior_name = #{superiorName},</if>
+            <if test="superiorPointsRatio != null">superior_points_ratio = #{superiorPointsRatio},</if>
             <if test="businessStaffName != null">business_staff_name = #{businessStaffName},</if>
             <if test="excelRawData != null">excel_raw_data = #{excelRawData},</if>
             updated_at = now()

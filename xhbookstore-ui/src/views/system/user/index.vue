@@ -45,7 +45,7 @@
 
         <el-table v-loading="loading" :data="userList" @selection-change="handleSelectionChange">
           <el-table-column type="selection" width="50" align="center" />
-          <el-table-column label="用户编号" align="center" key="userId" prop="userId" v-if="columns.userId.visible" />
+          <el-table-column label="ID" align="center" key="userId" prop="userId" v-if="columns.userId.visible" />
           <el-table-column label="用户名称" align="center" key="userName" v-if="columns.userName.visible" :show-overflow-tooltip="true">
             <template slot-scope="scope">
               <a class="link-type" style="cursor:pointer" @click="handleViewData(scope.row)">{{ scope.row.userName }}</a>
@@ -235,7 +235,7 @@ export default {
       },
       // 列信息
       columns: {
-        userId: { label: '用户编号', visible: true },
+        userId: { label: 'ID', visible: true },
         userName: { label: '用户名称', visible: true },
         nickName: { label: '用户昵称', visible: true },
         deptName: { label: '部门', visible: true },

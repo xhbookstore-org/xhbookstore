@@ -13,6 +13,7 @@ const user = {
     id: '',
     name: '',
     nickName: '',
+    deptName: '',
     avatar: '',
     roles: [],
     permissions: []
@@ -30,6 +31,9 @@ const user = {
     },
     SET_NICK_NAME: (state, nickName) => {
       state.nickName = nickName
+    },
+    SET_DEPT_NAME: (state, deptName) => {
+      state.deptName = deptName
     },
     SET_AVATAR: (state, avatar) => {
       state.avatar = avatar
@@ -79,6 +83,7 @@ const user = {
           commit('SET_ID', user.userId)
           commit('SET_NAME', user.userName)
           commit('SET_NICK_NAME', user.nickName)
+          commit('SET_DEPT_NAME', user.dept && user.dept.deptName ? user.dept.deptName : '')
           commit('SET_AVATAR', avatar)
           cache.session.set('pwrChrtype', res.pwdChrtype)
           /* 初始密码提示 */

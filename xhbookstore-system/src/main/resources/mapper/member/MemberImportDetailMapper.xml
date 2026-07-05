@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.MemberImportDetailMapper">
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.member.MemberImportDetail" useGeneratedKeys="true" keyProperty="id">
+        insert into member_import_detail (log_id, row_index, card_no, name, phone,
+            card_type_name, level_name, valid_date, update_time, import_status,
+            member_id, error_msg, created_at)
+        values (#{logId}, #{rowIndex}, #{cardNo}, #{name}, #{phone},
+            #{cardTypeName}, #{levelName}, #{validDate}, #{updateTime}, #{importStatus},
+            #{memberId}, #{errorMsg}, now())
+    </insert>
+
+    <update id="updateResult" parameterType="com.xhbookstore.system.domain.member.MemberImportDetail">
+        update member_import_detail
+        set import_status = #{importStatus},
+            member_id = #{memberId},
+            error_msg = #{errorMsg}
+        where id = #{id}
+    </update>
+</mapper>

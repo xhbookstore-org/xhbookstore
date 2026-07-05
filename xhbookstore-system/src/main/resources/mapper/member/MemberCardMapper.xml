@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.MemberCardMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.member.MemberCard" id="MemberCardResult">
+        <id property="id" column="id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="memberNo" column="member_no"/>
+        <result property="memberName" column="member_name"/>
+        <result property="memberPhone" column="member_phone"/>
+        <result property="cardTypeId" column="card_type_id"/>
+        <result property="cardTypeName" column="card_type_name"/>
+        <result property="validDays" column="valid_days"/>
+        <result property="saleAmount" column="sale_amount"/>
+        <result property="saleOrderNo" column="sale_order_no"/>
+        <result property="status" column="status"/>
+        <result property="paidAt" column="paid_at"/>
+        <result property="effectiveAt" column="effective_at"/>
+        <result property="expiredAt" column="expired_at"/>
+        <result property="refundedAt" column="refunded_at"/>
+        <result property="refundOrderNo" column="refund_order_no"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="createStaffId" column="create_staff_id"/>
+        <result property="createStaffName" column="create_staff_name"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="isDel" column="is_del"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.member.MemberCard" useGeneratedKeys="true" keyProperty="id">
+        insert into member_card (member_id, member_no, card_type_id, card_type_name, valid_days,
+            sale_amount, sale_order_no, status, paid_at, effective_at, expired_at, dept_id,
+            create_staff_id, create_staff_name, remark, created_at, updated_at, is_del)
+        values (#{memberId}, #{memberNo}, #{cardTypeId}, #{cardTypeName}, #{validDays},
+            #{saleAmount}, #{saleOrderNo}, #{status}, #{paidAt}, #{effectiveAt}, #{expiredAt}, #{deptId},
+            #{createStaffId}, #{createStaffName}, #{remark}, now(), now(), 0)
+    </insert>
+
+    <select id="selectById" parameterType="Long" resultMap="MemberCardResult">
+        select * from member_card where id = #{id} and is_del = 0
+    </select>
+
+    <select id="selectBySaleOrderNo" parameterType="String" resultMap="MemberCardResult">
+        select * from member_card where sale_order_no = #{saleOrderNo} and is_del = 0 limit 1
+    </select>
+
+    <select id="selectByIdForUpdate" parameterType="Long" resultMap="MemberCardResult">
+        select * from member_card where id = #{id} and is_del = 0 for update
+    </select>
+
+    <select id="selectActiveByMemberIdForUpdate" parameterType="Integer" resultMap="MemberCardResult">
+        select * from member_card
+        where member_id = #{memberId} and status = 1 and is_del = 0
+        order by effective_at asc, id asc
+        limit 1 for update
+    </select>
+
+    <select id="selectNextPendingByMemberIdForUpdate" parameterType="Integer" resultMap="MemberCardResult">
+        select * from member_card
+        where member_id = #{memberId} and status = 0 and is_del = 0
+        order by paid_at asc, id asc
+        limit 1 for update
+    </select>
+
+    <select id="selectByMemberId" parameterType="Integer" resultMap="MemberCardResult">
+        select * from member_card
+        where member_id = #{memberId} and is_del = 0
+        order by field(status, 1, 0, 2, 3), paid_at asc, id asc
+    </select>
+
+    <select id="selectList" parameterType="com.xhbookstore.system.domain.member.MemberCard" resultMap="MemberCardResult">
+        select c.*,
+               m.name as member_name,
+               m.phone as member_phone,
+               d.dept_name
+        from member_card c
+        left join member m on c.member_id = m.id
+        left join sys_dept d on c.dept_id = d.dept_id
+        <where>
+            c.is_del = 0
+            <if test="memberId != null">and c.member_id = #{memberId}</if>
+            <if test="memberName != null and memberName != ''">and m.name like concat('%', #{memberName}, '%')</if>
+            <if test="memberPhone != null and memberPhone != ''">and m.phone like concat('%', #{memberPhone}, '%')</if>
+            <if test="memberNo != null and memberNo != ''">and c.member_no like concat('%', #{memberNo}, '%')</if>
+            <if test="cardTypeId != null">and c.card_type_id = #{cardTypeId}</if>
+            <if test="status != null">and c.status = #{status}</if>
+            <if test="saleOrderNo != null and saleOrderNo != ''">and c.sale_order_no like concat('%', #{saleOrderNo}, '%')</if>
+            <if test="refundOrderNo != null and refundOrderNo != ''">and c.refund_order_no like concat('%', #{refundOrderNo}, '%')</if>
+            <if test="deptId != null and deptId != 0">and c.dept_id = #{deptId}</if>
+            <if test="createStaffName != null and createStaffName != ''">and c.create_staff_name like concat('%', #{createStaffName}, '%')</if>
+            <if test="beginPaidAt != null and beginPaidAt != ''">
+                and c.paid_at &gt;= #{beginPaidAt}
+            </if>
+            <if test="endPaidAt != null and endPaidAt != ''">
+                and c.paid_at &lt;= #{endPaidAt}
+            </if>
+            <if test="beginEffectiveAt != null and beginEffectiveAt != ''">
+                and c.effective_at &gt;= #{beginEffectiveAt}
+            </if>
+            <if test="endEffectiveAt != null and endEffectiveAt != ''">
+                and c.effective_at &lt;= #{endEffectiveAt}
+            </if>
+            <if test="beginExpiredAt != null and beginExpiredAt != ''">
+                and c.expired_at &gt;= #{beginExpiredAt}
+            </if>
+            <if test="endExpiredAt != null and endExpiredAt != ''">
+                and c.expired_at &lt;= #{endExpiredAt}
+            </if>
+            ${params.dataScope}
+        </where>
+        order by field(c.status, 1, 0, 3, 2),
+                 coalesce(c.paid_at, c.effective_at, c.created_at) desc,
+                 c.id desc
+    </select>
+
+    <update id="activate">
+        update member_card
+        set status = 1, effective_at = #{effectiveAt}, expired_at = #{expiredAt}, updated_at = now()
+        where id = #{id} and status = 0 and is_del = 0
+    </update>
+
+    <update id="expire">
+        update member_card
+        set status = 2, updated_at = now()
+        where id = #{id} and status = 1 and is_del = 0
+    </update>
+
+    <update id="refund">
+        update member_card
+        set status = 3, refund_order_no = #{refundOrderNo}, refunded_at = now(), updated_at = now()
+        where id = #{id} and status in (0, 1) and is_del = 0
+    </update>
+</mapper>

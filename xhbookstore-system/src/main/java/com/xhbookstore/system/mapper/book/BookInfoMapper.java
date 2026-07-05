@@ -8,4 +8,5 @@ public interface BookInfoMapper {
     BookInfo selectByIdForUpdate(Long id);
     int decreaseLendableQty(@Param("id") Long id, @Param("qty") Integer qty);
     int increaseLendableQty(@Param("id") Long id, @Param("qty") Integer qty);
+    int decreaseStockQty(@Param("id") Long id, @Param("qty") Integer qty);
 }

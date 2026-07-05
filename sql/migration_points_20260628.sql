@@ -93,7 +93,7 @@ ALTER TABLE member_import_detail MODIFY COLUMN valid_date DATE DEFAULT NULL COMM
 ALTER TABLE member_import_detail MODIFY COLUMN update_time DATETIME DEFAULT NULL COMMENT '更新时间';
 ALTER TABLE member_import_detail MODIFY COLUMN import_status TINYINT DEFAULT 0 COMMENT '导入状态：0-待导入，1-导入成功，2-导入失败';
 ALTER TABLE member_import_detail MODIFY COLUMN member_id INT DEFAULT NULL COMMENT '导入成功后关联的会员ID';
-ALTER TABLE member_import_detail MODIFY COLUMN error_msg VARCHAR(500) DEFAULT NULL COMMENT '错误信息';
+ALTER TABLE member_import_detail MODIFY COLUMN error_msg TEXT DEFAULT NULL COMMENT '错误信息/提醒信息';
 ALTER TABLE member_import_detail MODIFY COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间';
 ALTER TABLE member_import_detail COMMENT = '会员导入明细表';
 

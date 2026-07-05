@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.MemberCardRefundOrderMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.member.MemberCardRefundOrder" id="MemberCardRefundOrderResult">
+        <id property="id" column="id"/>
+        <result property="refundOrderNo" column="refund_order_no"/>
+        <result property="saleOrderNo" column="sale_order_no"/>
+        <result property="memberCardId" column="member_card_id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="memberNo" column="member_no"/>
+        <result property="memberName" column="member_name"/>
+        <result property="memberPhone" column="member_phone"/>
+        <result property="cardTypeId" column="card_type_id"/>
+        <result property="cardTypeName" column="card_type_name"/>
+        <result property="refundAmount" column="refund_amount"/>
+        <result property="refundType" column="refund_type"/>
+        <result property="refundStatus" column="refund_status"/>
+        <result property="reason" column="reason"/>
+        <result property="refundTime" column="refund_time"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="isDel" column="is_del"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.member.MemberCardRefundOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into member_card_refund_order (refund_order_no, sale_order_no, member_card_id, member_id,
+            member_no, card_type_id, card_type_name, refund_amount, refund_type, refund_status, reason,
+            refund_time, dept_id, operator_id, operator_name, remark, created_at, updated_at, is_del)
+        values (#{refundOrderNo}, #{saleOrderNo}, #{memberCardId}, #{memberId},
+            #{memberNo}, #{cardTypeId}, #{cardTypeName}, #{refundAmount}, #{refundType}, #{refundStatus}, #{reason},
+            #{refundTime}, #{deptId}, #{operatorId}, #{operatorName}, #{remark}, now(), now(), 0)
+    </insert>
+
+    <select id="selectByRefundOrderNo" parameterType="String" resultMap="MemberCardRefundOrderResult">
+        select * from member_card_refund_order where refund_order_no = #{refundOrderNo} and is_del = 0
+    </select>
+
+    <select id="selectByMemberCardId" parameterType="Long" resultMap="MemberCardRefundOrderResult">
+        select * from member_card_refund_order where member_card_id = #{memberCardId} and is_del = 0 limit 1
+    </select>
+
+    <select id="selectList" parameterType="com.xhbookstore.system.domain.member.MemberCardRefundOrder" resultMap="MemberCardRefundOrderResult">
+        select r.*,
+               m.name as member_name,
+               m.phone as member_phone,
+               d.dept_name
+        from member_card_refund_order r
+        left join member m on r.member_id = m.id
+        left join sys_dept d on r.dept_id = d.dept_id
+        <where>
+            r.is_del = 0
+            <if test="refundOrderNo != null and refundOrderNo != ''">and r.refund_order_no like concat('%', #{refundOrderNo}, '%')</if>
+            <if test="saleOrderNo != null and saleOrderNo != ''">and r.sale_order_no like concat('%', #{saleOrderNo}, '%')</if>
+            <if test="memberCardId != null">and r.member_card_id = #{memberCardId}</if>
+            <if test="memberId != null">and r.member_id = #{memberId}</if>
+            <if test="memberNo != null and memberNo != ''">and r.member_no like concat('%', #{memberNo}, '%')</if>
+            <if test="memberNameLike != null and memberNameLike != ''">and m.name like concat('%', #{memberNameLike}, '%')</if>
+            <if test="memberPhone != null and memberPhone != ''">and m.phone like concat('%', #{memberPhone}, '%')</if>
+            <if test="cardTypeId != null">and r.card_type_id = #{cardTypeId}</if>
+            <if test="cardTypeName != null and cardTypeName != ''">and r.card_type_name like concat('%', #{cardTypeName}, '%')</if>
+            <if test="refundType != null and refundType != ''">and r.refund_type = #{refundType}</if>
+            <if test="refundStatus != null">and r.refund_status = #{refundStatus}</if>
+            <if test="deptId != null and deptId != 0">and r.dept_id = #{deptId}</if>
+            <if test="operatorName != null and operatorName != ''">and r.operator_name like concat('%', #{operatorName}, '%')</if>
+            <if test="beginRefundTime != null and beginRefundTime != ''">and r.refund_time &gt;= #{beginRefundTime}</if>
+            <if test="endRefundTime != null and endRefundTime != ''">and r.refund_time &lt;= #{endRefundTime}</if>
+            <if test="beginCreatedAt != null and beginCreatedAt != ''">and r.created_at &gt;= #{beginCreatedAt}</if>
+            <if test="endCreatedAt != null and endCreatedAt != ''">and r.created_at &lt;= #{endCreatedAt}</if>
+            ${params.dataScope}
+        </where>
+        order by r.refund_time desc, r.created_at desc, r.id desc
+    </select>
+</mapper>

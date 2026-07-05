@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.MemberCardBizLogMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.member.MemberCardBizLog" id="MemberCardBizLogResult">
+        <id property="id" column="id"/>
+        <result property="traceId" column="trace_id"/>
+        <result property="memberCardId" column="member_card_id"/>
+        <result property="saleOrderNo" column="sale_order_no"/>
+        <result property="refundOrderNo" column="refund_order_no"/>
+        <result property="memberId" column="member_id"/>
+        <result property="memberNo" column="member_no"/>
+        <result property="logType" column="log_type"/>
+        <result property="beforeData" column="before_data"/>
+        <result property="afterData" column="after_data"/>
+        <result property="changeFields" column="change_fields"/>
+        <result property="reason" column="reason"/>
+        <result property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="device" column="device"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="isDel" column="is_del"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.member.MemberCardBizLog" useGeneratedKeys="true" keyProperty="id">
+        insert into member_card_biz_log (trace_id, member_card_id, sale_order_no, refund_order_no,
+            member_id, member_no, log_type, before_data, after_data, change_fields, reason,
+            operator_id, operator_name, device, created_at, is_del)
+        values (#{traceId}, #{memberCardId}, #{saleOrderNo}, #{refundOrderNo},
+            #{memberId}, #{memberNo}, #{logType}, #{beforeData}, #{afterData}, #{changeFields}, #{reason},
+            #{operatorId}, #{operatorName}, #{device}, now(), 0)
+    </insert>
+
+    <select id="selectByMemberCardId" parameterType="Long" resultMap="MemberCardBizLogResult">
+        select * from member_card_biz_log
+        where member_card_id = #{memberCardId} and is_del = 0
+        order by created_at desc, id desc
+    </select>
+</mapper>

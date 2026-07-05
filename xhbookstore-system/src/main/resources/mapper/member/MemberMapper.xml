@@ -37,11 +37,9 @@
     <select id="selectMemberList" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">
         <include refid="selectMemberVo"/>
         <where>
-            <choose>
-                <when test="status != null">and m.status = #{status}</when>
-                <otherwise>and m.status != 1</otherwise>
-            </choose>
+            <if test="status != null">and m.status = #{status}</if>
             <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
+            <if test="cardNo != null and cardNo != ''">and m.card_no like concat('%', #{cardNo}, '%')</if>
             <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
             <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
             <if test="params.beginTime != null and params.beginTime != ''">
@@ -52,17 +50,15 @@
             </if>
             ${params.dataScope}
         </where>
-        order by m.created_at desc
+        order by coalesce(m.updated_at, m.created_at) desc, m.created_at desc, m.id desc
     </select>
 
     <select id="selectMemberListForExport" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">
         <include refid="selectMemberVo"/>
         <where>
-            <choose>
-                <when test="status != null">and m.status = #{status}</when>
-                <otherwise>and m.status != 1</otherwise>
-            </choose>
+            <if test="status != null">and m.status = #{status}</if>
             <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
+            <if test="cardNo != null and cardNo != ''">and m.card_no like concat('%', #{cardNo}, '%')</if>
             <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
             <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
             <if test="params.beginTime != null and params.beginTime != ''">
@@ -73,7 +69,55 @@
             </if>
             ${params.dataScope}
         </where>
-        order by m.created_at desc
+        order by coalesce(m.updated_at, m.created_at) desc, m.created_at desc, m.id desc
+    </select>
+
+    <select id="selectMemberExportList" parameterType="com.xhbookstore.system.domain.member.Member" resultType="com.xhbookstore.system.domain.member.MemberExport">
+        select
+            m.card_no as cardNo,
+            m.name,
+            ct.type_name as cardTypeName,
+            ml.level_name as levelName,
+            me.discount,
+            me.total_points as totalPoints,
+            m.current_points as currentPoints,
+            me.level_points as levelPoints,
+            case when m.status = 1 then 'T' else 'F' end as cancelled,
+            coalesce(json_unquote(json_extract(me.excel_raw_data, '$."挂失 标记"')), '') as lostFlag,
+            m.phone,
+            me.total_purchase_amount as totalPurchaseAmount,
+            me.total_purchase_count as totalPurchaseCount,
+            me.total_purchase_times as totalPurchaseTimes,
+            me.join_date as joinDate,
+            me.gender,
+            me.age,
+            m.remark,
+            me.unit_phone as unitPhone,
+            m.valid_date as validDate,
+            me.wechat,
+            me.weibo,
+            me.superior_points_ratio as superiorPointsRatio,
+            me.superior_name as superiorName,
+            me.business_staff_name as businessStaffName
+        from member m
+        left join util_card_type ct on m.card_type_id = ct.id
+        left join member_level ml on m.level_id = ml.id
+        left join member_ext me on m.id = me.member_id
+        <where>
+            <if test="status != null">and m.status = #{status}</if>
+            <if test="name != null and name != ''">and m.name like concat('%', #{name}, '%')</if>
+            <if test="cardNo != null and cardNo != ''">and m.card_no like concat('%', #{cardNo}, '%')</if>
+            <if test="phone != null and phone != ''">and m.phone like concat('%', #{phone}, '%')</if>
+            <if test="deptId != null and deptId != 0">and m.dept_id = #{deptId}</if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and date_format(m.created_at,'%Y%m%d') &gt;= date_format(#{params.beginTime},'%Y%m%d')
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and date_format(m.created_at,'%Y%m%d') &lt;= date_format(#{params.endTime},'%Y%m%d')
+            </if>
+            ${params.dataScope}
+        </where>
+        order by coalesce(m.updated_at, m.created_at) desc, m.created_at desc, m.id desc
     </select>
 
     <select id="selectMemberById" parameterType="Integer" resultMap="MemberResult">
@@ -94,6 +138,12 @@
     <select id="selectMemberByCardNo" parameterType="String" resultMap="MemberResult">
         <include refid="selectMemberVo"/>
         where m.card_no = #{cardNo} limit 1
+    </select>
+
+    <select id="selectLevelIdByName" parameterType="String" resultType="Integer">
+        select id from member_level
+        where level_name = #{levelName} and status = 0
+        limit 1
     </select>
 
     <select id="selectMaxCardNoByDept" parameterType="String" resultType="String">
@@ -126,6 +176,16 @@
 
     <update id="deleteMemberById" parameterType="Integer">
         update member set status = 1, updated_at = now() where id = #{id}
+    </update>
+
+    <update id="updateCurrentCard">
+        update member
+        set card_type_id = #{cardTypeId},
+            valid_date = #{validDate},
+            status = #{status},
+            last_operator = #{lastOperator},
+            updated_at = now()
+        where id = #{id}
     </update>
 
 </mapper>

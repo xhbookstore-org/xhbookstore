@@ -879,7 +879,7 @@ create table member_import_detail (
   update_time       datetime        default null               comment '更新时间',
   import_status     tinyint         default 0                  comment '导入状态：0-待导入，1-导入成功，2-导入失败',
   member_id         int             default null               comment '导入成功后关联的会员ID',
-  error_msg         varchar(500)    default null               comment '错误信息',
+  error_msg         text            default null               comment '错误信息/提醒信息',
   created_at        datetime        default current_timestamp  comment '创建时间',
   primary key (id)
 ) engine=innodb auto_increment=1 default charset=utf8mb4 comment='会员导入明细表';

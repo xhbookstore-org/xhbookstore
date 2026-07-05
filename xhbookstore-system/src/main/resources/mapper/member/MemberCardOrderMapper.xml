@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.MemberCardOrderMapper">
+
+    <resultMap type="com.xhbookstore.system.domain.member.MemberCardOrder" id="MemberCardOrderResult">
+        <id property="id" column="id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="memberCardId" column="member_card_id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="memberNo" column="member_no"/>
+        <result property="memberName" column="member_name"/>
+        <result property="memberPhone" column="member_phone"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="cardTypeId" column="card_type_id"/>
+        <result property="cardTypeName" column="card_type_name"/>
+        <result property="validDays" column="valid_days"/>
+        <result property="receivableAmount" column="receivable_amount"/>
+        <result property="paidAmount" column="paid_amount"/>
+        <result property="paymentType" column="payment_type"/>
+        <result property="orderStatus" column="order_status"/>
+        <result property="payTime" column="pay_time"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="createStaffId" column="create_staff_id"/>
+        <result property="createStaffName" column="create_staff_name"/>
+        <result property="remark" column="remark"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="isDel" column="is_del"/>
+    </resultMap>
+
+    <insert id="insert" parameterType="com.xhbookstore.system.domain.member.MemberCardOrder" useGeneratedKeys="true" keyProperty="id">
+        insert into member_card_order (order_no, member_card_id, member_id, member_no, member_name,
+            member_phone, card_type_id, card_type_name, valid_days, receivable_amount, paid_amount,
+            payment_type, order_status, pay_time, dept_id, create_staff_id, create_staff_name,
+            remark, created_at, updated_at, is_del)
+        values (#{orderNo}, #{memberCardId}, #{memberId}, #{memberNo}, #{memberName},
+            #{memberPhone}, #{cardTypeId}, #{cardTypeName}, #{validDays}, #{receivableAmount}, #{paidAmount},
+            #{paymentType}, #{orderStatus}, #{payTime}, #{deptId}, #{createStaffId}, #{createStaffName},
+            #{remark}, now(), now(), 0)
+    </insert>
+
+    <update id="bindMemberCard" parameterType="com.xhbookstore.system.domain.member.MemberCardOrder">
+        update member_card_order
+        set member_card_id = #{memberCardId}, updated_at = now()
+        where order_no = #{orderNo} and is_del = 0
+    </update>
+
+    <select id="selectByOrderNo" parameterType="String" resultMap="MemberCardOrderResult">
+        select * from member_card_order where order_no = #{orderNo} and is_del = 0
+    </select>
+
+    <select id="selectByMemberCardId" parameterType="Long" resultMap="MemberCardOrderResult">
+        select * from member_card_order where member_card_id = #{memberCardId} and is_del = 0 limit 1
+    </select>
+
+    <select id="selectList" parameterType="com.xhbookstore.system.domain.member.MemberCardOrder" resultMap="MemberCardOrderResult">
+        select o.*,
+               coalesce(nullif(o.member_name, ''), m.name) as member_name,
+               coalesce(nullif(o.member_phone, ''), m.phone) as member_phone,
+               d.dept_name
+        from member_card_order o
+        left join member m on o.member_id = m.id
+        left join sys_dept d on o.dept_id = d.dept_id
+        <where>
+            o.is_del = 0
+            <if test="orderNo != null and orderNo != ''">and o.order_no like concat('%', #{orderNo}, '%')</if>
+            <if test="memberCardId != null">and o.member_card_id = #{memberCardId}</if>
+            <if test="memberId != null">and o.member_id = #{memberId}</if>
+            <if test="memberNo != null and memberNo != ''">and o.member_no like concat('%', #{memberNo}, '%')</if>
+            <if test="memberNameLike != null and memberNameLike != ''">and coalesce(nullif(o.member_name, ''), m.name) like concat('%', #{memberNameLike}, '%')</if>
+            <if test="memberPhone != null and memberPhone != ''">and coalesce(nullif(o.member_phone, ''), m.phone) like concat('%', #{memberPhone}, '%')</if>
+            <if test="cardTypeId != null">and o.card_type_id = #{cardTypeId}</if>
+            <if test="cardTypeName != null and cardTypeName != ''">and o.card_type_name like concat('%', #{cardTypeName}, '%')</if>
+            <if test="paymentType != null and paymentType != ''">and o.payment_type = #{paymentType}</if>
+            <if test="orderStatus != null">and o.order_status = #{orderStatus}</if>
+            <if test="deptId != null and deptId != 0">and o.dept_id = #{deptId}</if>
+            <if test="createStaffName != null and createStaffName != ''">and o.create_staff_name like concat('%', #{createStaffName}, '%')</if>
+            <if test="beginPayTime != null and beginPayTime != ''">and o.pay_time &gt;= #{beginPayTime}</if>
+            <if test="endPayTime != null and endPayTime != ''">and o.pay_time &lt;= #{endPayTime}</if>
+            <if test="beginCreatedAt != null and beginCreatedAt != ''">and o.created_at &gt;= #{beginCreatedAt}</if>
+            <if test="endCreatedAt != null and endCreatedAt != ''">and o.created_at &lt;= #{endCreatedAt}</if>
+            ${params.dataScope}
+        </where>
+        order by o.pay_time desc, o.created_at desc, o.id desc
+    </select>
+</mapper>

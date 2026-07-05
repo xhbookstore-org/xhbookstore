@@ -1,6 +1,7 @@
 package com.xhbookstore.api.controller;
 
 import java.util.*;
+import java.math.BigDecimal;
 import java.util.stream.Collectors;
 import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +22,8 @@ import com.xhbookstore.system.mapper.member.MemberCardLogMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.service.book.IBookBorrowService;
 import com.xhbookstore.system.service.member.ICardTypeService;
+import com.xhbookstore.system.service.member.IMemberCardService;
+import com.xhbookstore.system.service.member.IMemberCodeTokenService;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
 
@@ -35,6 +38,8 @@ public class StaffController {
     @Autowired private MemberCardLogMapper memberCardLogMapper;
     @Autowired private SysUserMapper sysUserMapper;
     @Autowired private ICardTypeService cardTypeService;
+    @Autowired private IMemberCardService memberCardService;
+    @Autowired private IMemberCodeTokenService memberCodeTokenService;
 
     @Operation(summary = "Staff home")
     @GetMapping("/home")
@@ -62,25 +67,58 @@ public class StaffController {
     }
 
     @Operation(summary = "Activate member card")
+    @SuppressWarnings("unchecked")
     @PostMapping("/members/{memberId}/activate-card")
     public ApiResponse<Map<String,Object>> activateCard(@PathVariable String memberId,@RequestBody Map<String,Object> body,HttpServletRequest request){
+        String memberCodeToken = stringValue(body.get("memberCodeToken"));
+        if(memberCodeToken==null||memberCodeToken.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"memberCodeToken is required");
+        Member tokenMember;
+        try { tokenMember = memberCodeTokenService.consumeToken(memberCodeToken,"BUY_CARD"); }
+        catch (IllegalArgumentException e) { throw new ApiException(ApiErrorCode.PARAM_INVALID,e.getMessage()); }
+        if(!String.valueOf(tokenMember.getId()).equals(memberId)) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Member code does not match path memberId");
         Integer cardTypeId=body.get("cardTypeId")!=null?Integer.valueOf(body.get("cardTypeId").toString()):null;
         if(cardTypeId==null) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Card type is required");
-        String memberName=(String)body.get("name"); if(memberName==null||memberName.trim().isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Member name is required");
-        CardType cardType=cardTypeService.selectById(cardTypeId); if(cardType==null) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Invalid card type");
-        Member member=memberMapper.selectMemberByIdForUpdate(Integer.parseInt(memberId)); if(member==null) throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
-        java.util.Calendar cal=java.util.Calendar.getInstance(); cal.add(java.util.Calendar.DAY_OF_YEAR,cardType.getValidDays());
-        member.setCardTypeId(cardTypeId); member.setName(memberName); member.setValidDate(cal.getTime()); member.setStatus(0); member.setLastOperator(getStaffId(request)); memberMapper.updateMember(member);
-        Map<String,Object> data=new HashMap<>(); data.put("success",true); data.put("memberId",member.getId()); data.put("memberNo",member.getCardNo()); data.put("cardTypeId",cardTypeId); data.put("cardTypeName",cardType.getTypeName()); data.put("validDate",member.getValidDate()); return ApiResponse.success(data);
+        AjaxResult result=memberCardService.buyCard(tokenMember.getId(),cardTypeId,toBigDecimal(body.get("paidAmount")),
+                stringValue(body.get("paymentType")),getStaffId(request),"staff",null,stringValue(body.get("remark")));
+        if(result.isError()) throw new ApiException(ApiErrorCode.PARAM_INVALID,String.valueOf(result.get("msg")));
+        return ApiResponse.success((Map<String,Object>)result.get("data"));
     }
 
     @Operation(summary = "Scan member code")
     @PostMapping("/member-code/scan")
     public ApiResponse<Map<String,Object>> scanMemberCode(@RequestBody Map<String,String> body){
-        String scanResult=body.get("scanResult"); if(scanResult==null||scanResult.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Scan result is required");
-        String[] parts=scanResult.split(":"); if(parts.length<4||!"MEMBER".equals(parts[0])||!"TIMESTAMP".equals(parts[2])) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Invalid member code");
-        Member member=memberMapper.selectMemberByCardNo(parts[1]); if(member==null) throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
-        Map<String,Object> data=new HashMap<>(); data.put("memberId",String.valueOf(member.getId())); data.put("memberNo",member.getCardNo()); return ApiResponse.success(data);
+        String token=body.get("memberCodeToken"); if(token==null||token.isEmpty()) token=body.get("scanResult");
+        if(token==null||token.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"memberCodeToken is required");
+        Member member;
+        try { member=memberCodeTokenService.verifyToken(token,"BUY_CARD"); }
+        catch (IllegalArgumentException e) { throw new ApiException(ApiErrorCode.PARAM_INVALID,e.getMessage()); }
+        memberCardService.refreshMemberCardStatus(member.getId(),"system","staff","STAFF_MP_SCAN");
+        Map<String,Object> data=new HashMap<>();
+        data.put("memberId",String.valueOf(member.getId()));
+        data.put("memberNo",member.getCardNo());
+        data.put("memberName",member.getName());
+        data.put("phoneDisplay",maskPhone(member.getPhone()));
+        data.put("cards",memberCardService.getMemberCardView(member.getId()).get("cards"));
+        return ApiResponse.success(data);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Operation(summary = "Buy member card by member code token")
+    @PostMapping("/member-cards/buy")
+    public ApiResponse<Map<String,Object>> buyMemberCard(@RequestBody Map<String,Object> body,HttpServletRequest request){
+        String memberCodeToken=stringValue(body.get("memberCodeToken"));
+        if(memberCodeToken==null||memberCodeToken.isEmpty()) memberCodeToken=stringValue(body.get("scanResult"));
+        Integer cardTypeId=body.get("cardTypeId")!=null?Integer.valueOf(body.get("cardTypeId").toString()):null;
+        BigDecimal paidAmount=toBigDecimal(body.get("paidAmount"));
+        AjaxResult result;
+        try {
+            result=memberCardService.buyCardByToken(memberCodeToken,cardTypeId,paidAmount,
+                    stringValue(body.get("paymentType")),getStaffId(request),"staff",null,stringValue(body.get("remark")));
+        } catch (IllegalArgumentException e) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID,e.getMessage());
+        }
+        if(result.isError()) throw new ApiException(ApiErrorCode.PARAM_INVALID,String.valueOf(result.get("msg")));
+        return ApiResponse.success((Map<String,Object>)result.get("data"));
     }
 
     @Operation(summary = "Member overview")
@@ -161,5 +199,7 @@ public class StaffController {
     private String getStaffId(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); return attr!=null?String.valueOf(attr):"system"; }
     private int remainingQty(BookBorrowDetail d){ int b=d.getBorrowQty()!=null?d.getBorrowQty():0; int r=d.getReturnedQty()!=null?d.getReturnedQty():0; int p=d.getPurchaseQty()!=null?d.getPurchaseQty():0; return b-r-p; }
     private int parseInt(Object v,int def){ if(v==null) return def; return Integer.parseInt(v.toString()); }
+    private String stringValue(Object v){ return v!=null?String.valueOf(v):null; }
+    private BigDecimal toBigDecimal(Object v){ return v!=null&&String.valueOf(v).trim().length()>0?new BigDecimal(String.valueOf(v)):null; }
     private String maskPhone(String phone){ if(phone==null||phone.length()<7) return phone; return phone.substring(0,3)+"****"+phone.substring(phone.length()-4); }
 }

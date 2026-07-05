@@ -12,6 +12,8 @@ import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.domain.book.*;
 import com.xhbookstore.system.service.member.IMemberService;
+import com.xhbookstore.system.service.member.IMemberCardService;
+import com.xhbookstore.system.service.member.IMemberCodeTokenService;
 import com.xhbookstore.system.service.member.IPointsService;
 import com.xhbookstore.system.service.book.IBookBorrowService;
 
@@ -25,6 +27,10 @@ public class UserController {
 
     @Autowired
     private IMemberService memberService;
+    @Autowired
+    private IMemberCardService memberCardService;
+    @Autowired
+    private IMemberCodeTokenService memberCodeTokenService;
     @Autowired
     private IPointsService pointsService;
     @Autowired
@@ -110,14 +116,28 @@ public class UserController {
                     com.xhbookstore.api.constant.ApiErrorCode.MEMBER_NOT_FOUND);
         }
 
+        com.xhbookstore.system.domain.member.MemberCodeTokenInfo tokenInfo =
+                memberCodeTokenService.createToken(memberId, "BUY_CARD", 60);
         String memberNo = member.getCardNo();
         Map<String, Object> data = new HashMap<>();
         data.put("memberNo", memberNo);
-        data.put("codeId", UUID.randomUUID().toString());
-        data.put("codeContent", "MEMBER:" + memberNo + ":TIMESTAMP:" + System.currentTimeMillis());
-        data.put("expiresAt", System.currentTimeMillis() + 30000);
-        data.put("ttlSeconds", 30);
+        data.put("memberCodeToken", tokenInfo.getToken());
+        data.put("codeContent", "MCODE:" + tokenInfo.getToken());
+        data.put("expiresAt", tokenInfo.getExpiresAt());
+        data.put("ttlSeconds", 60);
         return ApiResponse.success(data);
+    }
+
+    @Operation(summary = "My member cards")
+    @GetMapping("/member-cards")
+    public ApiResponse<Map<String, Object>> myMemberCards(HttpServletRequest request) {
+        Object memberIdObj = request.getAttribute("memberId");
+        if (memberIdObj == null) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.MEMBER_NOT_FOUND);
+        }
+        Integer memberId = Integer.valueOf(memberIdObj.toString());
+        return ApiResponse.success(memberCardService.getMemberCardView(memberId));
     }
 
     /**

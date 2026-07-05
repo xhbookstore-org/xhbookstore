@@ -10,4 +10,5 @@ public interface BookBorrowDetailMapper {
     List<BookBorrowDetail> selectByOrderId(Long borrowOrderId);
     List<BookBorrowDetail> selectByMemberId(Integer memberId);
     int updateReturnInfo(BookBorrowDetail detail);
+    int updatePurchaseInfo(BookBorrowDetail detail);
 }
