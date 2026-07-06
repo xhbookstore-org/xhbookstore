@@ -114,6 +114,14 @@ public class MemberCardServiceImpl implements IMemberCardService {
         card.setRemark(remark);
         memberCardMapper.insert(card);
 
+        if (remark != null && !remark.trim().isEmpty()) {
+            Member remarkUpdate = new Member();
+            remarkUpdate.setId(member.getId());
+            remarkUpdate.setRemark(remark.trim());
+            remarkUpdate.setLastOperator(staffId);
+            memberMapper.updateMember(remarkUpdate);
+        }
+
         order.setMemberCardId(card.getId());
         orderMapper.bindMemberCard(order);
         if (activateNow) {
@@ -127,6 +135,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
         data.put("memberCardId", card.getId());
         data.put("memberId", member.getId());
         data.put("memberNo", member.getCardNo());
+        data.put("memberName", member.getName());
         data.put("cardTypeId", cardType.getId());
         data.put("cardTypeName", cardType.getTypeName());
         data.put("cardStatus", card.getStatus());

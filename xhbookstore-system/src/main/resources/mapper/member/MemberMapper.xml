@@ -26,12 +26,13 @@
 
     <sql id="selectMemberVo">
         select m.id, m.card_no, m.name, m.phone, m.card_type_id, m.level_id, m.dept_id,
-               m.valid_date, m.status, m.borrow_count_valid, m.current_points, m.remark,
+               m.valid_date, m.status, m.borrow_count_valid, m.current_points, coalesce(nullif(m.remark, ''), ac.remark) as remark,
                m.last_operator, m.source, m.sync_erp, m.created_at, m.updated_at,
                ct.type_name as card_type_name, d.dept_name
         from member m
         left join util_card_type ct on m.card_type_id = ct.id
         left join sys_dept d on m.dept_id = d.dept_id
+        left join member_card ac on ac.member_id = m.id and ac.status = 1 and ac.is_del = 0
     </sql>
 
     <select id="selectMemberList" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">

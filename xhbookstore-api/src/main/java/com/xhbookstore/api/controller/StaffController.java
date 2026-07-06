@@ -18,7 +18,9 @@ import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.system.domain.book.*;
 import com.xhbookstore.system.domain.member.CardType;
 import com.xhbookstore.system.domain.member.Member;
+import com.xhbookstore.system.domain.member.MemberCard;
 import com.xhbookstore.system.domain.member.PointsOrder;
+import com.xhbookstore.system.mapper.SysMenuMapper;
 import com.xhbookstore.system.mapper.SysDeptMapper;
 import com.xhbookstore.system.mapper.SysUserMapper;
 import com.xhbookstore.system.mapper.member.MemberCardLogMapper;
@@ -39,6 +41,7 @@ public class StaffController {
     @Autowired private IPointsService pointsService;
     @Autowired private IBookBorrowService bookBorrowService;
     @Autowired private MemberCardLogMapper memberCardLogMapper;
+    @Autowired private SysMenuMapper sysMenuMapper;
     @Autowired private SysUserMapper sysUserMapper;
     @Autowired private SysDeptMapper sysDeptMapper;
     @Autowired private ICardTypeService cardTypeService;
@@ -84,6 +87,14 @@ public class StaffController {
         if(!String.valueOf(tokenMember.getId()).equals(memberId)) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Member code does not match path memberId");
         Integer cardTypeId=body.get("cardTypeId")!=null?Integer.valueOf(body.get("cardTypeId").toString()):null;
         if(cardTypeId==null) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Card type is required");
+        String requestMemberName=requestMemberName(body);
+        if(requestMemberName!=null){
+            Member update=new Member();
+            update.setId(tokenMember.getId());
+            update.setName(requestMemberName);
+            update.setLastOperator(getStaffId(request));
+            memberMapper.updateMember(update);
+        }
         AjaxResult result=memberCardService.buyCard(tokenMember.getId(),cardTypeId,toBigDecimal(body.get("paidAmount")),
                 stringValue(body.get("paymentType")),getStaffId(request),"staff",null,requestRemark(body));
         if(result.isError()) throw new ApiException(ApiErrorCode.PARAM_INVALID,String.valueOf(result.get("msg")));
@@ -129,12 +140,21 @@ public class StaffController {
 
     @Operation(summary = "Member overview")
     @GetMapping("/members/{memberId}/overview")
-    public ApiResponse<Map<String,Object>> memberOverview(@PathVariable String memberId){
+    public ApiResponse<Map<String,Object>> memberOverview(@PathVariable String memberId,HttpServletRequest request){
         Member member=memberService.selectMemberById(Integer.parseInt(memberId)); if(member==null) throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
         List<BookBorrowOrder> orders=bookBorrowService.selectByMemberId(member.getId()); int currentBorrowingCount=0;
         if(orders!=null) for(BookBorrowOrder o:orders){ List<BookBorrowDetail> ds=bookBorrowService.selectDetailsByOrderId(o.getId()); if(ds!=null) for(BookBorrowDetail d:ds) currentBorrowingCount+=Math.max(0,remainingQty(d)); }
         Map<String,Object> memberMap=new HashMap<>(); memberMap.put("memberId",String.valueOf(member.getId())); memberMap.put("memberNo",member.getCardNo()); memberMap.put("memberName",member.getName()); memberMap.put("phoneDisplay",maskPhone(member.getPhone())); memberMap.put("currentPoints",member.getCurrentPoints()); memberMap.put("currentBorrowingCount",currentBorrowingCount); memberMap.put("yearBorrowCount",orders!=null?orders.size():0); memberMap.put("card",buildMemberCard(member));
-        Map<String,Object> availability=new HashMap<>(); availability.put("canBorrow",true); availability.put("canReturn",currentBorrowingCount>0); availability.put("returnDisabledReason",currentBorrowingCount>0?null:"No borrowing books"); availability.put("canAdjustPoints",true); availability.put("canOpenBorrowCard",member.getCardTypeId()==null||member.getCardTypeId()==1); availability.put("canRenewBorrowCard",member.getCardTypeId()!=null&&member.getCardTypeId()!=1); availability.put("maxAddPoints",99999); availability.put("maxDeductPoints",member.getCurrentPoints()!=null?member.getCurrentPoints():0);
+        Map<String,Object> cardView=memberCardService.getMemberCardView(member.getId());
+        MemberCard activeCard=cardView.get("activeCard") instanceof MemberCard?(MemberCard)cardView.get("activeCard"):null;
+        memberMap.put("remark",member.getRemark()!=null&&!member.getRemark().trim().isEmpty()?member.getRemark():activeCard!=null?activeCard.getRemark():null);
+        CardType activeCardType=activeCard!=null&&activeCard.getCardTypeId()!=null?cardTypeService.selectById(activeCard.getCardTypeId()):null;
+        boolean memberActive=member.getStatus()==null||member.getStatus()!=1;
+        boolean hasBorrowCard=activeCard!=null&&activeCardType!=null&&activeCardType.getBorrowLimit()!=null&&activeCardType.getBorrowLimit()>0;
+        boolean hasBorrowQuota=hasBorrowCard&&currentBorrowingCount<activeCardType.getBorrowLimit();
+        boolean canBorrow=hasStaffPerm(request,"book:borrow:add","book:borrow:create","staff:borrow:add","staff:borrow:create")&&memberActive&&hasBorrowCard&&hasBorrowQuota;
+        boolean canReturn=hasStaffPerm(request,"book:return:add","book:return:create","staff:return:add","staff:return:create")&&currentBorrowingCount>0;
+        Map<String,Object> availability=new HashMap<>(); availability.put("canBorrow",canBorrow); availability.put("borrowDisabledReason",borrowDisabledReason(memberActive,hasBorrowCard,hasBorrowQuota)); availability.put("canReturn",canReturn); availability.put("returnDisabledReason",currentBorrowingCount>0?null:"No borrowing books"); availability.put("canAdjustPoints",true); availability.put("canOpenBorrowCard",member.getCardTypeId()==null||member.getCardTypeId()==1); availability.put("canRenewBorrowCard",member.getCardTypeId()!=null&&member.getCardTypeId()!=1); availability.put("maxAddPoints",99999); availability.put("maxDeductPoints",member.getCurrentPoints()!=null?member.getCurrentPoints():0);
         Map<String,Object> data=new HashMap<>(); data.put("member",memberMap); data.put("availability",availability); return ApiResponse.success(data);
     }
 
@@ -215,11 +235,14 @@ public class StaffController {
     private SysUser currentStaff(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); if(attr==null) throw new ApiException(ApiErrorCode.FORBIDDEN,"No staff permission"); SysUser staff=sysUserMapper.selectUserById(Long.valueOf(attr.toString())); if(staff==null) throw new ApiException(ApiErrorCode.FORBIDDEN,"Staff not found"); return staff; }
     private List<Long> visibleDeptIds(HttpServletRequest request){ SysUser staff=currentStaff(request); if(staff.isAdmin()) return null; List<Long> ids=new ArrayList<>(); if(staff.getDeptId()!=null){ ids.add(staff.getDeptId()); List<SysDept> children=sysDeptMapper.selectChildrenDeptById(staff.getDeptId()); if(children!=null) for(SysDept d:children){ if("0".equals(d.getStatus())) ids.add(d.getDeptId()); } } return ids; }
     private String getStaffId(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); return attr!=null?String.valueOf(attr):"system"; }
+    private boolean hasStaffPerm(HttpServletRequest request,String... perms){ SysUser staff=currentStaff(request); if(staff.isAdmin()) return true; Set<String> candidates=new HashSet<>(Arrays.asList(perms)); List<String> allPerms=sysMenuMapper.selectMenuPerms(); boolean configured=false; if(allPerms!=null) for(String p:allPerms){ if(candidates.contains(p)){ configured=true; break; } } if(!configured) return true; List<String> userPerms=sysMenuMapper.selectMenuPermsByUserId(staff.getUserId()); if(userPerms==null||userPerms.isEmpty()) return false; Set<String> set=new HashSet<>(); for(String p:userPerms){ if(p!=null&&!p.isEmpty()) set.add(p); } if(set.contains("*:*:*")) return true; for(String p:perms){ if(set.contains(p)) return true; } return false; }
+    private String borrowDisabledReason(boolean memberActive,boolean hasBorrowCard,boolean hasBorrowQuota){ if(!memberActive) return "Member inactive"; if(!hasBorrowCard) return "No active borrow card"; if(!hasBorrowQuota) return "Borrow limit reached"; return null; }
     private int remainingQty(BookBorrowDetail d){ int b=d.getBorrowQty()!=null?d.getBorrowQty():0; int r=d.getReturnedQty()!=null?d.getReturnedQty():0; int p=d.getPurchaseQty()!=null?d.getPurchaseQty():0; return b-r-p; }
     private Long parseLong(String v,String fieldName){ try{return Long.valueOf(v);}catch(Exception e){ throw new ApiException(ApiErrorCode.PARAM_INVALID,fieldName+" must be a number"); } }
     private int parseInt(Object v,int def){ if(v==null) return def; return Integer.parseInt(v.toString()); }
     private String stringValue(Object v){ return v!=null?String.valueOf(v):null; }
     private String requestRemark(Map<String,Object> body){ String v=stringValue(body.get("remark")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("remarks")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("memo")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("note")); return v!=null?v.trim():null; }
+    private String requestMemberName(Map<String,Object> body){ String v=stringValue(body.get("memberName")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("name")); return v!=null&&!v.trim().isEmpty()?v.trim():null; }
     private BigDecimal toBigDecimal(Object v){ return v!=null&&String.valueOf(v).trim().length()>0?new BigDecimal(String.valueOf(v)):null; }
     private Long timeMillis(Date date){ return date!=null?Long.valueOf(date.getTime()):null; }
     private String maskPhone(String phone){ if(phone==null||phone.length()<7) return phone; return phone.substring(0,3)+"****"+phone.substring(phone.length()-4); }
