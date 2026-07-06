@@ -111,7 +111,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (bearer != null && bearer.startsWith("Bearer ")) {
             return bearer.substring(7);
         }
-        return request.getParameter("token");
+        return null;
     }
 
     private void writeUnauthorized(HttpServletResponse response, int code, String message) throws IOException {

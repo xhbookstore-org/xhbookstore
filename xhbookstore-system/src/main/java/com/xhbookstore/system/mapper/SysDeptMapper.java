@@ -52,6 +52,8 @@ public interface SysDeptMapper
      */
     public int selectNormalChildrenDeptById(Long deptId);
 
+    public int countNormalDept(@Param("excludeDeptId") Long excludeDeptId);
+
     /**
      * 是否存在子节点
      * 

@@ -31,4 +31,6 @@ public interface IPointsService {
      * @return 积分订单列表
      */
     List<PointsOrder> selectByMemberId(Integer memberId);
+
+    PointsOrder selectByOrderNumber(String orderNumber);
 }

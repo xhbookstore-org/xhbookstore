@@ -48,6 +48,42 @@
         order by created_at desc
     </select>
 
+    <select id="selectList" resultMap="BookBorrowOrderResult">
+        select * from book_borrow_order
+        <where>
+            is_del = 0
+            <if test="phone != null and phone != ''">
+                and member_phone like concat('%', #{phone}, '%')
+            </if>
+            <if test="status != null">
+                and borrow_status = #{status}
+            </if>
+            <if test="deptIds != null and deptIds.size() > 0">
+                and dept_id in
+                <foreach collection="deptIds" item="deptId" open="(" separator="," close=")">
+                    #{deptId}
+                </foreach>
+            </if>
+        </where>
+        order by created_at desc, id desc
+    </select>
+
+    <select id="countTodayByDeptId" resultType="int">
+        select count(1) from book_borrow_order
+        where is_del = 0
+          and dept_id = #{deptId}
+          and borrow_time &gt;= current_date()
+          and borrow_time &lt; date_add(current_date(), interval 1 day)
+    </select>
+
+    <select id="countTodayByStaffId" resultType="int">
+        select count(1) from book_borrow_order
+        where is_del = 0
+          and first_staff_id = #{staffId}
+          and borrow_time &gt;= current_date()
+          and borrow_time &lt; date_add(current_date(), interval 1 day)
+    </select>
+
     <update id="updateStatus" parameterType="com.xhbookstore.system.domain.book.BookBorrowOrder">
         update book_borrow_order
         <set>

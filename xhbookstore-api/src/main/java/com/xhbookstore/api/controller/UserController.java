@@ -80,8 +80,9 @@ public class UserController {
                 memberMap.put("phoneDisplay", phoneDisplay);
                 memberMap.put("card", card);
                 memberMap.put("currentPoints", member.getCurrentPoints() != null ? member.getCurrentPoints() : 0);
-                memberMap.put("currentBorrowingCount", 0); // TODO: 真实统计
-                memberMap.put("yearBorrowCount", 0);        // TODO: 真实统计
+                Map<String, Integer> borrowStats = borrowStats(member.getId());
+                memberMap.put("currentBorrowingCount", borrowStats.get("currentBorrowingCount"));
+                memberMap.put("yearBorrowCount", borrowStats.get("yearBorrowCount"));
             }
         } else {
             memberMap.put("memberId", null);
@@ -249,10 +250,20 @@ public class UserController {
      */
     @Operation(summary = "查询积分详情", description = "按积分记录ID查询单条积分详情")
     @GetMapping("/points-records/{pointsRecordId}")
-    public ApiResponse<Map<String, Object>> pointsDetail(@PathVariable String pointsRecordId) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("pointsRecordId", pointsRecordId);
-        return ApiResponse.success(data);
+    public ApiResponse<Map<String, Object>> pointsDetail(@PathVariable String pointsRecordId, HttpServletRequest request) {
+        Integer memberId = currentMemberId(request);
+        PointsOrder order = pointsService.selectByOrderNumber(pointsRecordId);
+        if (order == null || order.getIsDel() != null && order.getIsDel() != 0) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.NOT_FOUND,
+                    "Points record not found");
+        }
+        if (order.getMemberId() == null || !order.getMemberId().equals(memberId)) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.FORBIDDEN,
+                    "No permission to view this points record");
+        }
+        return ApiResponse.success(buildPointsItem(order));
     }
 
     private String maskPhone(String phone) {
@@ -311,6 +322,33 @@ public class UserController {
         return list;
     }
 
+    private Map<String, Integer> borrowStats(Integer memberId) {
+        Map<String, Integer> stats = new HashMap<>();
+        int currentBorrowingCount = 0;
+        int yearBorrowCount = 0;
+        List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(memberId);
+        Calendar now = Calendar.getInstance();
+        if (orders != null) {
+            for (BookBorrowOrder order : orders) {
+                List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(order.getId());
+                if (details == null) continue;
+                for (BookBorrowDetail detail : details) {
+                    currentBorrowingCount += Math.max(0, remainingQty(detail));
+                    if (detail.getBorrowTime() != null) {
+                        Calendar created = Calendar.getInstance();
+                        created.setTime(detail.getBorrowTime());
+                        if (created.get(Calendar.YEAR) == now.get(Calendar.YEAR)) {
+                            yearBorrowCount += detail.getBorrowQty() != null ? detail.getBorrowQty() : 0;
+                        }
+                    }
+                }
+            }
+        }
+        stats.put("currentBorrowingCount", currentBorrowingCount);
+        stats.put("yearBorrowCount", yearBorrowCount);
+        return stats;
+    }
+
     private int remainingQty(BookBorrowDetail d) {
         int b = d.getBorrowQty() != null ? d.getBorrowQty() : 0;
         int r = d.getReturnedQty() != null ? d.getReturnedQty() : 0;
@@ -326,6 +364,20 @@ public class UserController {
                     com.xhbookstore.api.constant.ApiErrorCode.PARAM_INVALID,
                     fieldName + " must be a number");
         }
+    }
+
+    private Map<String, Object> buildPointsItem(PointsOrder o) {
+        Map<String, Object> r = new HashMap<>();
+        r.put("pointsRecordId", o.getOrderNumber());
+        r.put("memberId", o.getMemberId());
+        r.put("reasonName", o.getDescription());
+        r.put("direction", o.getOrderNumber() != null && o.getOrderNumber().startsWith("IN") ? "add" : "deduct");
+        r.put("pointsDelta", o.getAmount());
+        r.put("beforePoints", o.getOrginPoints());
+        r.put("afterPoints", o.getAfterPoints());
+        r.put("operatedAt", o.getCreatedAt() != null ? o.getCreatedAt().getTime() : null);
+        r.put("operationDevice", o.getOperationDevice());
+        return r;
     }
 
     private Long timeMillis(Date date) {

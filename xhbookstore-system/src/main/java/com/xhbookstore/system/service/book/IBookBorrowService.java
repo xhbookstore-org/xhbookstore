@@ -19,6 +19,12 @@ public interface IBookBorrowService {
 
     List<BookBorrowOrder> selectByMemberId(Integer memberId);
 
+    List<BookBorrowOrder> selectList(String phone, Integer status, List<Long> deptIds);
+
+    int countTodayByDeptId(Long deptId);
+
+    int countTodayByStaffId(String staffId);
+
     BookBorrowOrder selectOrderByNo(String orderNo);
 
     List<BookBorrowDetail> selectDetailsByOrderId(Long orderId);

@@ -225,12 +225,6 @@ public class WechatServiceImpl implements IWechatService {
             return phone;
         }
 
-        // staging测试兜底：微信API失败时，11位纯数字code可当手机号用（方便curl测试）
-        if (!"prod".equals(activeProfile) && code != null && code.matches("\\d{11}")) {
-            log.warn("[微信Mock] staging测试兜底，code={} → phone={}", code, code);
-            return code;
-        }
-
         return null;
     }
 

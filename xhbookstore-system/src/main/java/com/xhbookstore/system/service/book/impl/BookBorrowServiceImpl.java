@@ -341,6 +341,21 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     }
 
     @Override
+    public List<BookBorrowOrder> selectList(String phone, Integer status, List<Long> deptIds) {
+        return orderMapper.selectList(phone, status, deptIds);
+    }
+
+    @Override
+    public int countTodayByDeptId(Long deptId) {
+        return orderMapper.countTodayByDeptId(deptId);
+    }
+
+    @Override
+    public int countTodayByStaffId(String staffId) {
+        return orderMapper.countTodayByStaffId(staffId);
+    }
+
+    @Override
     public BookBorrowOrder selectOrderByNo(String orderNo) {
         return orderMapper.selectByOrderNo(orderNo);
     }

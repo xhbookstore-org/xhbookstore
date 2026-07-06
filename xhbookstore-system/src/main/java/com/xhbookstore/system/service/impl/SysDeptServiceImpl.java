@@ -29,6 +29,8 @@ import com.xhbookstore.system.service.ISysDeptService;
 @Service
 public class SysDeptServiceImpl implements ISysDeptService
 {
+    private static final int MAX_NORMAL_DEPT_COUNT = 20;
+
     @Autowired
     private SysDeptMapper deptMapper;
 
@@ -217,6 +219,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         {
             throw new ServiceException("部门停用，不允许新增");
         }
+        checkNormalDeptLimit(dept, null);
         dept.setAncestors(info.getAncestors() + "," + dept.getParentId());
         return deptMapper.insertDept(dept);
     }
@@ -232,6 +235,7 @@ public class SysDeptServiceImpl implements ISysDeptService
     {
         SysDept newParentDept = deptMapper.selectDeptById(dept.getParentId());
         SysDept oldDept = deptMapper.selectDeptById(dept.getDeptId());
+        checkNormalDeptLimit(dept, oldDept);
         if (StringUtils.isNotNull(newParentDept) && StringUtils.isNotNull(oldDept))
         {
             String newAncestors = newParentDept.getAncestors() + "," + newParentDept.getDeptId();
@@ -247,6 +251,23 @@ public class SysDeptServiceImpl implements ISysDeptService
             updateParentDeptStatusNormal(dept);
         }
         return result;
+    }
+
+    private void checkNormalDeptLimit(SysDept dept, SysDept oldDept)
+    {
+        if (!UserConstants.DEPT_NORMAL.equals(dept.getStatus()))
+        {
+            return;
+        }
+        if (oldDept != null && UserConstants.DEPT_NORMAL.equals(oldDept.getStatus()))
+        {
+            return;
+        }
+        int normalCount = deptMapper.countNormalDept(dept.getDeptId());
+        if (normalCount >= MAX_NORMAL_DEPT_COUNT)
+        {
+            throw new ServiceException("有效门店数量最多为20个");
+        }
     }
 
     /**

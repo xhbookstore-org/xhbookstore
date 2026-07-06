@@ -12,11 +12,14 @@ import com.xhbookstore.api.constant.ApiErrorCode;
 import com.xhbookstore.api.exception.ApiException;
 import com.xhbookstore.api.model.ApiResponse;
 import com.xhbookstore.api.model.PageResult;
+import com.xhbookstore.common.core.domain.entity.SysDept;
+import com.xhbookstore.common.core.domain.entity.SysUser;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.system.domain.book.*;
 import com.xhbookstore.system.domain.member.CardType;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.PointsOrder;
+import com.xhbookstore.system.mapper.SysDeptMapper;
 import com.xhbookstore.system.mapper.SysUserMapper;
 import com.xhbookstore.system.mapper.member.MemberCardLogMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
@@ -37,17 +40,20 @@ public class StaffController {
     @Autowired private IBookBorrowService bookBorrowService;
     @Autowired private MemberCardLogMapper memberCardLogMapper;
     @Autowired private SysUserMapper sysUserMapper;
+    @Autowired private SysDeptMapper sysDeptMapper;
     @Autowired private ICardTypeService cardTypeService;
     @Autowired private IMemberCardService memberCardService;
     @Autowired private IMemberCodeTokenService memberCodeTokenService;
 
     @Operation(summary = "Staff home")
     @GetMapping("/home")
-    public ApiResponse<Map<String,Object>> home(){
+    public ApiResponse<Map<String,Object>> home(HttpServletRequest request){
+        SysUser staff=currentStaff(request);
         Map<String,Object> data=new HashMap<>();
-        data.put("storeName","Xinhua Bookstore");
-        data.put("todayStoreBorrowCount",12);
-        data.put("todayStaffBorrowCount",3);
+        SysDept dept=staff.getDeptId()!=null?sysDeptMapper.selectDeptById(staff.getDeptId()):null;
+        data.put("storeName",dept!=null?dept.getDeptName():"Xinhua Bookstore");
+        data.put("todayStoreBorrowCount",staff.getDeptId()!=null?bookBorrowService.countTodayByDeptId(staff.getDeptId()):0);
+        data.put("todayStaffBorrowCount",bookBorrowService.countTodayByStaffId(String.valueOf(staff.getUserId())));
         return ApiResponse.success(data);
     }
 
@@ -134,7 +140,7 @@ public class StaffController {
 
     @Operation(summary = "Borrow list")
     @GetMapping("/borrows")
-    public ApiResponse<Map<String,Object>> borrowsList(@RequestParam(required=false) String phone,@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int pageNo,@RequestParam(defaultValue="20") int pageSize){ Map<String,Object> data=new HashMap<>(); data.put("page",new PageResult<>(Collections.emptyList(),pageNo,pageSize,0)); return ApiResponse.success(data); }
+    public ApiResponse<Map<String,Object>> borrowsList(@RequestParam(required=false) String phone,@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int pageNo,@RequestParam(defaultValue="20") int pageSize,HttpServletRequest request){ Integer statusValue=status!=null&&!status.isEmpty()?Integer.parseInt(status):null; List<BookBorrowOrder> orders=bookBorrowService.selectList(phone,statusValue,visibleDeptIds(request)); List<Map<String,Object>> list=flattenBorrowDetails(orders,"all"); Map<String,Object> data=new HashMap<>(); data.put("page",page(list,pageNo,pageSize)); return ApiResponse.success(data); }
 
     @Operation(summary = "Borrow detail")
     @GetMapping("/borrows/{detailId}")
@@ -199,12 +205,15 @@ public class StaffController {
 
     @Operation(summary = "Point detail")
     @GetMapping("/points-records/{pointsRecordId}")
-    public ApiResponse<Map<String,Object>> pointsDetail(@PathVariable String pointsRecordId){ Map<String,Object> data=new HashMap<>(); data.put("pointsRecordId",pointsRecordId); return ApiResponse.success(data); }
+    public ApiResponse<Map<String,Object>> pointsDetail(@PathVariable String pointsRecordId){ PointsOrder order=pointsService.selectByOrderNumber(pointsRecordId); if(order==null||order.getIsDel()!=null&&order.getIsDel()!=0) throw new ApiException(ApiErrorCode.NOT_FOUND,"Points record not found"); Map<String,Object> data=new HashMap<>(); data.put("pointsRecordId",order.getOrderNumber()); data.put("memberId",order.getMemberId()); data.put("reasonName",order.getDescription()); data.put("direction",order.getOrderNumber()!=null&&order.getOrderNumber().startsWith("IN")?"add":"deduct"); data.put("pointsDelta",order.getAmount()); data.put("beforePoints",order.getOrginPoints()); data.put("afterPoints",order.getAfterPoints()); data.put("operatedAt",order.getCreatedAt()!=null?order.getCreatedAt().getTime():null); data.put("operationDevice",order.getOperationDevice()); return ApiResponse.success(data); }
 
     private Map<String,Object> buildMemberCard(Member m){ Map<String,Object> card=new HashMap<>(); card.put("cardTypeId",m.getCardTypeId()); card.put("cardTypeName",m.getCardTypeName()); card.put("memberNo",m.getCardNo()); card.put("cardStatus",m.getStatus()!=null&&m.getStatus()==0?"active":"inactive"); card.put("level",m.getLevelId()); card.put("remainingDays",m.getValidDate()!=null?Math.max(0,(m.getValidDate().getTime()-System.currentTimeMillis())/86400000L):0); card.put("effectiveAt",m.getCreatedAt()!=null?m.getCreatedAt().getTime():null); card.put("expiredAt",m.getValidDate()!=null?m.getValidDate().getTime():null); return card; }
     private List<Map<String,Object>> flattenBorrowDetails(List<BookBorrowOrder> orders,String mode){ List<Map<String,Object>> list=new ArrayList<>(); if(orders==null) return list; for(BookBorrowOrder o:orders){ List<BookBorrowDetail> ds=bookBorrowService.selectDetailsByOrderId(o.getId()); for(BookBorrowDetail d:ds){ if("borrowing".equals(mode)&&remainingQty(d)<=0) continue; list.add(buildFlatItem(o,d)); } } return list; }
     private Map<String,Object> buildFlatItem(BookBorrowOrder o,BookBorrowDetail d){ Map<String,Object> item=new HashMap<>(); item.put("detailId",d.getId()); item.put("borrowDetailId",d.getId()); item.put("orderNo",d.getBorrowOrderNo()); item.put("memberId",d.getMemberId()); item.put("bookId",d.getBookId()); item.put("bookName",d.getBookName()); item.put("borrowStatus",d.getBorrowStatus()!=null?d.getBorrowStatus():0); item.put("borrowQty",d.getBorrowQty()!=null?d.getBorrowQty():0); item.put("returnedQty",d.getReturnedQty()!=null?d.getReturnedQty():0); item.put("purchaseQty",d.getPurchaseQty()!=null?d.getPurchaseQty():0); item.put("remainingQty",remainingQty(d)); item.put("purchaseOrderNo",d.getPurchaseOrderNo()); item.put("borrowTime",timeMillis(d.getBorrowTime())); item.put("returnAllTime",d.getReturnAllTime()!=null?timeMillis(d.getReturnAllTime()):(o!=null?timeMillis(o.getReturnAllTime()):null)); item.put("expectedReturnTime",o!=null?timeMillis(o.getExpectedReturnTime()):null); item.put("remark",d.getRemark()!=null?d.getRemark():(o!=null?o.getRemark():null)); return item; }
     private List<BookReturnDetail> filterReturns(List<BookReturnDetail> returns,Long detailId){ List<BookReturnDetail> list=new ArrayList<>(); if(returns==null) return list; for(BookReturnDetail r:returns){ if(r.getBorrowDetailId()!=null&&r.getBorrowDetailId().equals(detailId)) list.add(r); } return list; }
+    private <T> PageResult<T> page(List<T> records,int pageNo,int pageSize){ int safePageNo=Math.max(pageNo,1); int safePageSize=Math.max(pageSize,1); int from=Math.min((safePageNo-1)*safePageSize,records.size()); int to=Math.min(from+safePageSize,records.size()); return new PageResult<>(records.subList(from,to),safePageNo,safePageSize,records.size()); }
+    private SysUser currentStaff(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); if(attr==null) throw new ApiException(ApiErrorCode.FORBIDDEN,"No staff permission"); SysUser staff=sysUserMapper.selectUserById(Long.valueOf(attr.toString())); if(staff==null) throw new ApiException(ApiErrorCode.FORBIDDEN,"Staff not found"); return staff; }
+    private List<Long> visibleDeptIds(HttpServletRequest request){ SysUser staff=currentStaff(request); if(staff.isAdmin()) return null; List<Long> ids=new ArrayList<>(); if(staff.getDeptId()!=null){ ids.add(staff.getDeptId()); List<SysDept> children=sysDeptMapper.selectChildrenDeptById(staff.getDeptId()); if(children!=null) for(SysDept d:children){ if("0".equals(d.getStatus())) ids.add(d.getDeptId()); } } return ids; }
     private String getStaffId(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); return attr!=null?String.valueOf(attr):"system"; }
     private int remainingQty(BookBorrowDetail d){ int b=d.getBorrowQty()!=null?d.getBorrowQty():0; int r=d.getReturnedQty()!=null?d.getReturnedQty():0; int p=d.getPurchaseQty()!=null?d.getPurchaseQty():0; return b-r-p; }
     private Long parseLong(String v,String fieldName){ try{return Long.valueOf(v);}catch(Exception e){ throw new ApiException(ApiErrorCode.PARAM_INVALID,fieldName+" must be a number"); } }

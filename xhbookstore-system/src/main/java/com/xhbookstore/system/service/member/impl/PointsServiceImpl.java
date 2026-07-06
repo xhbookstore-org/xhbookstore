@@ -191,4 +191,9 @@ public class PointsServiceImpl implements IPointsService {
     public List<PointsOrder> selectByMemberId(Integer memberId) {
         return pointsOrderMapper.selectByMemberId(memberId);
     }
+
+    @Override
+    public PointsOrder selectByOrderNumber(String orderNumber) {
+        return pointsOrderMapper.selectByOrderNumber(orderNumber);
+    }
 }
