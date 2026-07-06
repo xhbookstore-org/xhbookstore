@@ -108,7 +108,7 @@ public class MemberServiceImpl implements IMemberService {
     @Transactional
     public AjaxResult insertMember(Member member, MemberExt ext) {
         // Check phone uniqueness
-        if (member.getPhone() != null && memberMapper.selectMemberByPhone(member.getPhone()) != null) {
+        if (member.getPhone() != null && memberMapper.selectMemberByPhoneAnyStatus(member.getPhone()) != null) {
             return AjaxResult.error("该手机号已注册");
         }
         // Generate card_no
@@ -151,7 +151,7 @@ public class MemberServiceImpl implements IMemberService {
 
         // Check phone uniqueness
         if (member.getPhone() != null) {
-            Member phoneCheck = memberMapper.selectMemberByPhone(member.getPhone());
+            Member phoneCheck = memberMapper.selectMemberByPhoneAnyStatus(member.getPhone());
             if (phoneCheck != null && !phoneCheck.getId().equals(member.getId())) {
                 return AjaxResult.error("该手机号已被其他会员使用");
             }
@@ -298,6 +298,7 @@ public class MemberServiceImpl implements IMemberService {
     }
 
     private ImportResult importOneMember(ImportRow row, Long deptId, String operator, Map<String, CardType> cardTypeMap) {
+        if (StringUtils.isBlank(row.phone)) throw new IllegalArgumentException("有用户无手机号，请确认数据");
         if (StringUtils.isBlank(row.cardNo)) throw new IllegalArgumentException("会员卡号不能为空");
         if (StringUtils.isBlank(row.name)) throw new IllegalArgumentException("姓名不能为空");
 
@@ -307,7 +308,7 @@ public class MemberServiceImpl implements IMemberService {
             throw new ImportSkipException("未导入：会员卡号已存在，不再重新导入");
         }
         if (StringUtils.isNotBlank(row.phone)) {
-            Member phoneMember = memberMapper.selectMemberByPhone(row.phone);
+            Member phoneMember = memberMapper.selectMemberByPhoneAnyStatus(row.phone);
             if (phoneMember != null && !row.cardNo.equals(phoneMember.getCardNo())) {
                 throw new IllegalArgumentException("手机号已被其他会员使用");
             }

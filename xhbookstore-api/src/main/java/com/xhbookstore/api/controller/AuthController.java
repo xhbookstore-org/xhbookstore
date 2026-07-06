@@ -48,34 +48,39 @@ public class AuthController {
         if (StringUtils.isEmpty(code)) throw new ApiException(ApiErrorCode.PARAM_INVALID, "缺少微信授权码");
         String phone = wechatService.getPhoneNumber(code);
         if (phone == null || phone.isEmpty()) throw new ApiException(ApiErrorCode.AUTH_CODE_INVALID);
-        Member member = memberMapper.selectMemberByPhone(phone);
+        Member member = memberMapper.selectMemberByPhoneAnyStatus(phone);
         SysUser staff = sysUserMapper.selectUserByPhonenumber(phone);
         if (member != null && member.getStatus() != null && member.getStatus() != 0) {
             log.warn("[登录拒绝] phone={}, memberId={}, status={}", maskPhone(phone), member.getId(), member.getStatus());
-            member = null;
-        }
-        if (member == null && staff == null) {
+        } else if (member != null) {
+            Member updateMember = new Member();
+            updateMember.setId(member.getId());
+            updateMember.setLastOperator("wechat-login");
+            memberMapper.updateMember(updateMember);
+            member = memberMapper.selectMemberByPhoneAnyStatus(phone);
+        } else if (staff == null) {
             try {
                 member = new Member(); member.setPhone(phone); member.setName("");
                 member.setStatus(0); member.setSource("wechat"); member.setCurrentPoints(0);
                 member.setBorrowCountValid(0); member.setSyncErp(0); member.setLastOperator("system");
                 member.setCardNo("9"+String.format("%010d",System.currentTimeMillis()%10_000_000_000L));
                 memberMapper.insertMember(member);
-                member = memberMapper.selectMemberByPhone(phone);
+                member = memberMapper.selectMemberByPhoneAnyStatus(phone);
                 log.info("[自动注册] phone={}, memberId={}", maskPhone(phone), member!=null?member.getId():null);
             } catch (Exception e) { log.error("[自动注册失败] {}", e.getMessage()); member = null; }
         }
-        boolean isMember = member != null, isStaff = staff != null;
-        String userId = member != null ? "M"+member.getId() : staff != null ? "S"+staff.getUserId() : UUID.randomUUID().toString();
+        boolean isMember = member != null && (member.getStatus() == null || member.getStatus() == 0), isStaff = staff != null;
+        Member activeMember = isMember ? member : null;
+        String userId = activeMember != null ? "M"+activeMember.getId() : staff != null ? "S"+staff.getUserId() : UUID.randomUUID().toString();
         String secret = securityProperties.getJwt().getSecret();
         long ae = securityProperties.getJwt().getAccessTokenExpire(), re = securityProperties.getJwt().getRefreshTokenExpire();
         String at = Jwts.builder().setSubject(userId).claim("isMember",isMember).claim("isStaff",isStaff)
-            .claim("phone",phone).claim("memberId",member!=null?member.getId():null)
+            .claim("phone",phone).claim("memberId",activeMember!=null?activeMember.getId():null)
             .claim("staffUserId",staff!=null?staff.getUserId():null).claim("type","access")
             .setIssuedAt(new Date()).setExpiration(new Date(System.currentTimeMillis()+ae*1000))
             .signWith(SignatureAlgorithm.HS256,secret).compact();
         String rt = Jwts.builder().setSubject(userId).claim("isMember",isMember).claim("isStaff",isStaff)
-            .claim("phone",phone).claim("memberId",member!=null?member.getId():null)
+            .claim("phone",phone).claim("memberId",activeMember!=null?activeMember.getId():null)
             .claim("staffUserId",staff!=null?staff.getUserId():null).claim("type","refresh")
             .setId(UUID.randomUUID().toString()).setIssuedAt(new Date())
             .setExpiration(new Date(System.currentTimeMillis()+re*1000))
@@ -84,7 +89,7 @@ public class AuthController {
         d.put("accessToken",at); d.put("refreshToken",rt); d.put("expiresIn",ae);
         d.put("isStaff",isStaff); d.put("staffUserId",staff!=null?staff.getUserId():null);
         d.put("isMember",isMember); d.put("userId",userId);
-        d.put("memberId",member!=null?member.getId():null);
+        d.put("memberId",activeMember!=null?activeMember.getId():null);
         return ApiResponse.success(d);
     }
 

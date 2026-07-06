@@ -809,7 +809,7 @@ create table member (
   updated_at          datetime        default current_timestamp on update current_timestamp comment '修改时间',
   primary key (id),
   unique key uk_card_no (card_no),
-  key idx_phone (phone),
+  unique key uk_member_phone (phone),
   key idx_dept_id (dept_id),
   key idx_valid_date (valid_date)
 ) engine=innodb auto_increment=1 default charset=utf8mb4 comment='会员主表';

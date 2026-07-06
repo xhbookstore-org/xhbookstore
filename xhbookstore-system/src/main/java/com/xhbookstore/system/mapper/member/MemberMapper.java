@@ -11,6 +11,7 @@ public interface MemberMapper {
     Member selectMemberById(Integer id);
     Member selectMemberByIdForUpdate(Integer id);
     Member selectMemberByPhone(String phone);
+    Member selectMemberByPhoneAnyStatus(String phone);
     Member selectMemberByCardNo(String cardNo);
     Integer selectLevelIdByName(String levelName);
     int insertMember(Member member);

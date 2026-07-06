@@ -135,6 +135,11 @@
         where m.phone = #{phone} and m.status = 0 limit 1
     </select>
 
+    <select id="selectMemberByPhoneAnyStatus" parameterType="String" resultMap="MemberResult">
+        <include refid="selectMemberVo"/>
+        where m.phone = #{phone} limit 1
+    </select>
+
     <select id="selectMemberByCardNo" parameterType="String" resultMap="MemberResult">
         <include refid="selectMemberVo"/>
         where m.card_no = #{cardNo} limit 1
