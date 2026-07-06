@@ -50,15 +50,16 @@ public class AuthController {
         if (phone == null || phone.isEmpty()) throw new ApiException(ApiErrorCode.AUTH_CODE_INVALID);
         Member member = memberMapper.selectMemberByPhoneAnyStatus(phone);
         SysUser staff = sysUserMapper.selectUserByPhonenumber(phone);
-        if (member != null && member.getStatus() != null && member.getStatus() != 0) {
+        if (member != null && member.getStatus() != null && member.getStatus() == 1) {
             log.warn("[登录拒绝] phone={}, memberId={}, status={}", maskPhone(phone), member.getId(), member.getStatus());
         } else if (member != null) {
             Member updateMember = new Member();
             updateMember.setId(member.getId());
+            updateMember.setStatus(0);
             updateMember.setLastOperator("wechat-login");
             memberMapper.updateMember(updateMember);
             member = memberMapper.selectMemberByPhoneAnyStatus(phone);
-        } else if (staff == null) {
+        } else {
             try {
                 member = new Member(); member.setPhone(phone); member.setName("");
                 member.setStatus(0); member.setSource("wechat"); member.setCurrentPoints(0);
@@ -69,7 +70,7 @@ public class AuthController {
                 log.info("[自动注册] phone={}, memberId={}", maskPhone(phone), member!=null?member.getId():null);
             } catch (Exception e) { log.error("[自动注册失败] {}", e.getMessage()); member = null; }
         }
-        boolean isMember = member != null && (member.getStatus() == null || member.getStatus() == 0), isStaff = staff != null;
+        boolean isMember = member != null && (member.getStatus() == null || member.getStatus() != 1), isStaff = staff != null;
         Member activeMember = isMember ? member : null;
         String userId = activeMember != null ? "M"+activeMember.getId() : staff != null ? "S"+staff.getUserId() : UUID.randomUUID().toString();
         String secret = securityProperties.getJwt().getSecret();

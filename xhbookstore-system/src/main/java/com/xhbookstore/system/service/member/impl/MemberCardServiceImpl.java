@@ -227,7 +227,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
             writeLog(after, "ACTIVATE_CARD", before, after, "status,effective_at,expired_at",
                     "Activate next pending card", operatorId, operatorName, device, null);
         } else {
-            memberMapper.updateCurrentCard(memberId, null, null, 2, operatorId);
+            memberMapper.updateCurrentCard(memberId, null, null, 0, operatorId);
         }
         return memberCardMapper.selectByMemberId(memberId);
     }
