@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 import com.xhbookstore.api.model.ApiResponse;
 import com.xhbookstore.api.model.PageResult;
+import com.xhbookstore.system.domain.member.MemberCard;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.domain.book.*;
@@ -139,7 +140,40 @@ public class UserController {
                     com.xhbookstore.api.constant.ApiErrorCode.MEMBER_NOT_FOUND);
         }
         Integer memberId = Integer.valueOf(memberIdObj.toString());
-        return ApiResponse.success(memberCardService.getMemberCardView(memberId));
+        return ApiResponse.success(filterVisibleMemberCards(memberCardService.getMemberCardView(memberId)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> filterVisibleMemberCards(Map<String, Object> cardView) {
+        if (cardView == null) {
+            return Collections.emptyMap();
+        }
+        Object cardsObj = cardView.get("cards");
+        if (!(cardsObj instanceof List<?> cards)) {
+            return cardView;
+        }
+        List<MemberCard> visibleCards = new ArrayList<>();
+        for (Object item : cards) {
+            if (!(item instanceof MemberCard card)) {
+                continue;
+            }
+            Integer status = card.getStatus();
+            if (status != null && (status == 0 || status == 1)) {
+                visibleCards.add(card);
+            }
+        }
+        Map<String, Object> filtered = new HashMap<>(cardView);
+        filtered.put("cards", visibleCards);
+        MemberCard activeCard = null;
+        for (MemberCard card : visibleCards) {
+            if (card.getStatus() != null && card.getStatus() == 1) {
+                activeCard = card;
+                break;
+            }
+        }
+        filtered.put("activeCard", activeCard);
+        filtered.put("hasActiveCard", activeCard != null);
+        return filtered;
     }
 
     /**
