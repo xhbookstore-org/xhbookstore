@@ -107,9 +107,6 @@ public class ApiIdentityInterceptor implements HandlerInterceptor {
 
     private Long resolveStaffResourceDeptId(HttpServletRequest request) {
         String uri = request.getRequestURI();
-        if (PATH_MATCHER.match("/api/mp/v1/staff/members/{memberId}/**", uri)) {
-            return memberDept(intPathVar(request, "memberId"));
-        }
         if (PATH_MATCHER.match("/api/mp/v1/staff/borrows/{detailId}", uri)) {
             return borrowDetailDept(longPathVar(request, "detailId"));
         }
