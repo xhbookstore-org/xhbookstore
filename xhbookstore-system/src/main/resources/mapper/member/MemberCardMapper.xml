@@ -115,6 +115,76 @@
                  c.id desc
     </select>
 
+    <select id="selectExportList" parameterType="com.xhbookstore.system.domain.member.MemberCard" resultType="com.xhbookstore.system.domain.member.MemberCardExport">
+        select c.id,
+               c.member_no as memberNo,
+               m.name as memberName,
+               m.phone as memberPhone,
+               c.card_type_id as cardTypeId,
+               c.card_type_name as cardTypeName,
+               c.valid_days as validDays,
+               case c.status
+                   when 0 then '待生效'
+                   when 1 then '生效中'
+                   when 2 then '已过期'
+                   when 3 then '已退款'
+                   else '未知'
+               end as statusName,
+               case when c.status = 1 then '是' else '否' end as activeFlag,
+               c.sale_order_no as saleOrderNo,
+               c.sale_amount as saleAmount,
+               c.paid_at as paidAt,
+               c.effective_at as effectiveAt,
+               c.expired_at as expiredAt,
+               c.refund_order_no as refundOrderNo,
+               c.refunded_at as refundedAt,
+               c.dept_id as deptId,
+               d.dept_name as deptName,
+               c.create_staff_id as createStaffId,
+               c.create_staff_name as createStaffName,
+               c.remark,
+               c.created_at as createdAt,
+               c.updated_at as updatedAt
+        from member_card c
+        left join member m on c.member_id = m.id
+        left join sys_dept d on c.dept_id = d.dept_id
+        <where>
+            c.is_del = 0
+            <if test="memberId != null">and c.member_id = #{memberId}</if>
+            <if test="memberName != null and memberName != ''">and m.name like concat('%', #{memberName}, '%')</if>
+            <if test="memberPhone != null and memberPhone != ''">and m.phone like concat('%', #{memberPhone}, '%')</if>
+            <if test="memberNo != null and memberNo != ''">and c.member_no like concat('%', #{memberNo}, '%')</if>
+            <if test="cardTypeId != null">and c.card_type_id = #{cardTypeId}</if>
+            <if test="status != null">and c.status = #{status}</if>
+            <if test="saleOrderNo != null and saleOrderNo != ''">and c.sale_order_no like concat('%', #{saleOrderNo}, '%')</if>
+            <if test="refundOrderNo != null and refundOrderNo != ''">and c.refund_order_no like concat('%', #{refundOrderNo}, '%')</if>
+            <if test="deptId != null and deptId != 0">and c.dept_id = #{deptId}</if>
+            <if test="createStaffName != null and createStaffName != ''">and c.create_staff_name like concat('%', #{createStaffName}, '%')</if>
+            <if test="beginPaidAt != null and beginPaidAt != ''">
+                and c.paid_at &gt;= #{beginPaidAt}
+            </if>
+            <if test="endPaidAt != null and endPaidAt != ''">
+                and c.paid_at &lt;= #{endPaidAt}
+            </if>
+            <if test="beginEffectiveAt != null and beginEffectiveAt != ''">
+                and c.effective_at &gt;= #{beginEffectiveAt}
+            </if>
+            <if test="endEffectiveAt != null and endEffectiveAt != ''">
+                and c.effective_at &lt;= #{endEffectiveAt}
+            </if>
+            <if test="beginExpiredAt != null and beginExpiredAt != ''">
+                and c.expired_at &gt;= #{beginExpiredAt}
+            </if>
+            <if test="endExpiredAt != null and endExpiredAt != ''">
+                and c.expired_at &lt;= #{endExpiredAt}
+            </if>
+            ${params.dataScope}
+        </where>
+        order by field(c.status, 1, 0, 3, 2),
+                 coalesce(c.paid_at, c.effective_at, c.created_at) desc,
+                 c.id desc
+    </select>
+
     <update id="activate">
         update member_card
         set status = 1, effective_at = #{effectiveAt}, expired_at = #{expiredAt}, updated_at = now()

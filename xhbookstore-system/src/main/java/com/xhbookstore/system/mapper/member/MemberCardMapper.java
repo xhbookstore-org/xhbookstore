@@ -3,6 +3,7 @@ package com.xhbookstore.system.mapper.member;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 import com.xhbookstore.system.domain.member.MemberCard;
+import com.xhbookstore.system.domain.member.MemberCardExport;
 
 public interface MemberCardMapper {
     int insert(MemberCard card);
@@ -13,6 +14,7 @@ public interface MemberCardMapper {
     MemberCard selectNextPendingByMemberIdForUpdate(Integer memberId);
     List<MemberCard> selectByMemberId(Integer memberId);
     List<MemberCard> selectList(MemberCard card);
+    List<MemberCardExport> selectExportList(MemberCard card);
     int activate(@Param("id") Long id, @Param("effectiveAt") java.util.Date effectiveAt,
                  @Param("expiredAt") java.util.Date expiredAt);
     int expire(@Param("id") Long id);

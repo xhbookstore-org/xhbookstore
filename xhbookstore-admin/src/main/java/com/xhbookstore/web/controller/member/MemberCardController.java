@@ -3,6 +3,7 @@ package com.xhbookstore.web.controller.member;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -17,7 +18,9 @@ import com.xhbookstore.common.core.controller.BaseController;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.common.core.page.TableDataInfo;
 import com.xhbookstore.common.enums.BusinessType;
+import com.xhbookstore.common.utils.poi.ExcelUtil;
 import com.xhbookstore.system.domain.member.MemberCard;
+import com.xhbookstore.system.domain.member.MemberCardExport;
 import com.xhbookstore.system.domain.member.MemberCardOrder;
 import com.xhbookstore.system.domain.member.MemberCardRefundOrder;
 import com.xhbookstore.system.mapper.member.MemberCardBizLogMapper;
@@ -42,6 +45,16 @@ public class MemberCardController extends BaseController {
         startPage();
         List<MemberCard> list = memberCardMapper.selectList(card);
         return getDataTable(list);
+    }
+
+    @PreAuthorize("@ss.hasPermi('member:card:export')")
+    @Log(title = "会员卡记录", businessType = BusinessType.EXPORT)
+    @DataScope(deptAlias = "c")
+    @PostMapping("/export")
+    public void export(HttpServletResponse response, MemberCard card) {
+        List<MemberCardExport> list = memberCardMapper.selectExportList(card);
+        ExcelUtil<MemberCardExport> util = new ExcelUtil<MemberCardExport>(MemberCardExport.class);
+        util.exportExcel(response, list, "会员卡记录");
     }
 
     @PreAuthorize("@ss.hasAnyPermi('member:cardOrder:list,member:card:list,member:card:query')")

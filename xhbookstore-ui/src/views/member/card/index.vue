@@ -70,6 +70,7 @@
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" @click="handleQuery">搜索</el-button>
         <el-button icon="el-icon-refresh" @click="resetQuery">重置</el-button>
+        <el-button type="warning" plain icon="el-icon-download" @click="handleExport" v-hasPermi="['member:card:export']">导出</el-button>
       </el-form-item>
     </el-form>
 
@@ -221,6 +222,15 @@ export default {
   methods: {
     getList() {
       this.loading = true
+      const params = this.buildQueryParams()
+      listMemberCards(params).then(response => {
+        this.cardList = response.rows || []
+        this.total = response.total || 0
+        this.loading = false
+      }).catch(() => { this.loading = false })
+    },
+
+    buildQueryParams() {
       const params = { ...this.queryParams }
       if (this.paidRange && this.paidRange.length === 2) {
         params.beginPaidAt = this.paidRange[0]
@@ -234,11 +244,7 @@ export default {
         params.beginExpiredAt = this.expiredRange[0]
         params.endExpiredAt = this.expiredRange[1]
       }
-      listMemberCards(params).then(response => {
-        this.cardList = response.rows || []
-        this.total = response.total || 0
-        this.loading = false
-      }).catch(() => { this.loading = false })
+      return params
     },
     handleQuery() {
       this.queryParams.pageNum = 1
@@ -304,6 +310,42 @@ export default {
     },
     cardStatusTag(status) {
       return { 0: 'warning', 1: 'success', 2: 'info', 3: 'danger' }[status] || 'info'
+    },
+    formatExportTimestamp(date) {
+      const pad = n => String(n).padStart(2, '0')
+      return date.getFullYear() +
+        pad(date.getMonth() + 1) +
+        pad(date.getDate()) + '_' +
+        pad(date.getHours()) +
+        pad(date.getMinutes()) +
+        pad(date.getSeconds())
+    },
+    exportConditionName() {
+      const parts = []
+      const dept = this.deptOptions.find(d => String(d.deptId) === String(this.queryParams.deptId))
+      const cardType = this.cardTypes.find(c => String(c.id) === String(this.queryParams.cardTypeId))
+      const status = this.queryParams.status !== null && this.queryParams.status !== undefined && this.queryParams.status !== ''
+        ? this.cardStatusText(this.queryParams.status)
+        : null
+      if (dept && dept.deptName) parts.push(dept.deptName)
+      if (cardType && cardType.typeName) parts.push(cardType.typeName)
+      if (status) parts.push(status)
+      if (this.queryParams.memberNo) parts.push(this.queryParams.memberNo)
+      if (this.queryParams.memberName) parts.push(this.queryParams.memberName)
+      if (this.queryParams.memberPhone) parts.push(this.queryParams.memberPhone)
+      if (this.queryParams.saleOrderNo) parts.push(this.queryParams.saleOrderNo)
+      if (this.queryParams.refundOrderNo) parts.push(this.queryParams.refundOrderNo)
+      if (this.paidRange && this.paidRange.length === 2) parts.push('付款' + this.paidRange[0].slice(0, 10) + '至' + this.paidRange[1].slice(0, 10))
+      if (this.effectiveRange && this.effectiveRange.length === 2) parts.push('生效' + this.effectiveRange[0].slice(0, 10) + '至' + this.effectiveRange[1].slice(0, 10))
+      if (this.expiredRange && this.expiredRange.length === 2) parts.push('到期' + this.expiredRange[0].slice(0, 10) + '至' + this.expiredRange[1].slice(0, 10))
+      return (parts.length ? parts.join('_') : '全部').replace(/[\\/:*?"<>|\s]+/g, '_')
+    },
+    handleExport() {
+      const params = this.buildQueryParams()
+      delete params.pageNum
+      delete params.pageSize
+      const filename = `会员卡记录_${this.exportConditionName()}_${this.formatExportTimestamp(new Date())}.xlsx`
+      this.download('member/card/export', params, filename)
     }
   }
 }
@@ -314,6 +356,3 @@ export default {
   margin-bottom: 16px;
 }
 </style>
-
-
-
