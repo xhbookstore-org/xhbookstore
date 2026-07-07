@@ -52,11 +52,8 @@ public class AuthController {
     public ApiResponse<Map<String, Object>> wechatPhoneLogin(@RequestBody Map<String, String> body) {
         String code = body.get("code");
         if (StringUtils.isEmpty(code)) throw new ApiException(ApiErrorCode.PARAM_INVALID, "code is required");
-        Long deptId = parseDeptId(body.get("deptId"));
-        SysDept dept = sysDeptMapper.selectDeptById(deptId);
-        if (dept == null || !"0".equals(dept.getStatus())) {
-            throw new ApiException(ApiErrorCode.PARAM_INVALID, "Store not found or disabled");
-        }
+        Long deptId = parseOptionalDeptId(body.get("deptId"));
+        if (deptId != null) validateStore(deptId);
 
         String phone = wechatService.getPhoneNumber(code);
         if (phone == null || phone.isEmpty()) throw new ApiException(ApiErrorCode.AUTH_CODE_INVALID);
@@ -69,11 +66,15 @@ public class AuthController {
             Member updateMember = new Member();
             updateMember.setId(member.getId());
             updateMember.setStatus(0);
-            if (member.getDeptId() == null || member.getDeptId() == 0) updateMember.setDeptId(deptId);
+            if (member.getDeptId() == null || member.getDeptId() == 0) {
+                if (deptId == null) throw new ApiException(ApiErrorCode.PARAM_INVALID, "deptId is required");
+                updateMember.setDeptId(deptId);
+            }
             updateMember.setLastOperator("wechat-login");
             memberMapper.updateMember(updateMember);
             member = memberMapper.selectMemberByPhoneAnyStatus(phone);
         } else {
+            if (deptId == null) throw new ApiException(ApiErrorCode.PARAM_INVALID, "deptId is required");
             try {
                 member = new Member();
                 member.setPhone(phone);
@@ -182,12 +183,19 @@ public class AuthController {
         return ApiResponse.success(d);
     }
 
-    private Long parseDeptId(String value) {
-        if (StringUtils.isEmpty(value)) throw new ApiException(ApiErrorCode.PARAM_INVALID, "deptId is required");
+    private Long parseOptionalDeptId(String value) {
+        if (StringUtils.isEmpty(value)) return null;
         try {
             return Long.valueOf(value);
         } catch (Exception e) {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "deptId must be a number");
+        }
+    }
+
+    private void validateStore(Long deptId) {
+        SysDept dept = sysDeptMapper.selectDeptById(deptId);
+        if (dept == null || !"0".equals(dept.getStatus())) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "Store not found or disabled");
         }
     }
 
