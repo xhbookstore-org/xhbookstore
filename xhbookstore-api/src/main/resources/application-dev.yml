@@ -51,7 +51,7 @@ cos:
   secret-key: ${COS_SECRET_KEY:dev-secret-key}
   region: ap-beijing
   bucket: myfirst-1445566426
-  base-url: https://myfirst-1445566426.cos.ap-beijing.lighthouse.tencentcos.cn
+  base-url: https://myfirst-1445566426.cos.ap-beijing.myqcloud.com
   max-file-size: 10485760
 
 logging:
