@@ -1473,6 +1473,106 @@ pm.test("列表结构正确", function () {
 | 会员 token 调员工接口 | 用会员 token 调 `/staff/**` | 失败 |
 | 员工 token 调本人接口 | 用员工 token 调 `/user/**` | 按业务身份限制 |
 | 越权访问详情 | A 门店账号查 B 门店单据 | 失败 |
+
+## 2026-07-07 小程序会员注册与开卡变更补充用例
+
+### T20260707-01 门店列表
+
+```http
+GET {{mpBaseUrl}}/stores
+```
+
+断言：
+
+- 未登录可调用。
+- `code = 0`。
+- `data.list[]` 返回 `deptId`、`deptName`。
+- 前端选择门店后，将 `deptId` 传给微信手机号登录接口。
+
+### T20260707-02 微信手机号登录绑定门店
+
+```http
+POST {{mpBaseUrl}}/auth/wechat-phone-login
+Content-Type: application/json
+
+{
+  "code": "mock_member_code",
+  "deptId": "{{deptId}}"
+}
+```
+
+断言：
+
+- `deptId` 必填；缺失时返回参数错误。
+- 新用户自动注册普通会员并绑定 `deptId`。
+- 新会员编号按 11 位规则生成：门店编码 + 门店内递增编号。
+- 返回 `accessToken`、`refreshToken`、`memberId`、`deptId`、`needBindStore=false`。
+- 已有会员如果未绑定门店，登录时绑定本次传入的 `deptId`。
+- 已有会员如果已绑定门店，不覆盖原门店。
+
+### T20260707-03 校验登录态返回门店
+
+```http
+GET {{mpBaseUrl}}/auth/session
+Authorization: Bearer {{memberAccessToken}}
+```
+
+断言：
+
+- `data.valid = true`。
+- 返回 `isMember`、`isStaff`、`memberId`、`deptId`、`userId`。
+
+### T20260707-04 员工开卡设置会员姓名
+
+```http
+POST {{mpBaseUrl}}/staff/members/{{memberId}}/activate-card
+Authorization: Bearer {{staffAccessToken}}
+Content-Type: application/json
+Idempotency-Key: card-activate-{{memberId}}-{{$timestamp}}
+
+{
+  "memberCodeToken": "{{memberCodeToken}}",
+  "cardTypeId": "{{cardTypeId}}",
+  "paidAmount": 365,
+  "paymentType": "CASH",
+  "memberName": "Apifox测试会员",
+  "remark": "Apifox员工开卡"
+}
+```
+
+断言：
+
+- `memberCodeToken` 必填。
+- token 过期或伪造时不能开卡。
+- token 解析出的会员必须等于路径 `memberId`。
+- `memberName` 有值时更新会员姓名。
+- 返回结果包含 `memberName`。
+- 生成售卡订单和会员卡记录。
+- `memberCodeToken` 使用 `verifyToken` 校验，不会立即消费；有效期内仍可再次扫码预览。
+
+### T20260707-05 按会员码购买会员卡 token 不立即失效
+
+```http
+POST {{mpBaseUrl}}/staff/member-cards/buy
+Authorization: Bearer {{staffAccessToken}}
+Content-Type: application/json
+Idempotency-Key: card-buy-token-{{$timestamp}}
+
+{
+  "memberCodeToken": "{{memberCodeToken}}",
+  "cardTypeId": "{{cardTypeId}}",
+  "paidAmount": 365,
+  "paymentType": "CASH",
+  "remark": "Apifox扫码购卡"
+}
+```
+
+断言：
+
+- 通过 `memberCodeToken` 定位会员。
+- `memberCodeToken` 使用 `verifyToken` 校验，不会立即消费。
+- token 在服务端有效期内可以继续用于扫码预览或校验。
+- 仍需依赖 `Idempotency-Key` 防止重复提交同一开卡请求。
 | 超量还书 | `returnQty > 可还数量` | 失败且数据不变 |
 | 积分扣成负数 | 扣减大于当前积分 | 失败且数据不变 |
 
@@ -1483,4 +1583,3 @@ pm.test("列表结构正确", function () {
 | P0 | 登录、会员码、开卡、退卡、借阅、还书、借转购、积分增减、数据权限 |
 | P1 | 会员导入导出、会员卡订单、首页统计、操作日志 |
 | P2 | 系统菜单、字典、参数、通知、监控 |
-

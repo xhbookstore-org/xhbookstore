@@ -49,7 +49,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
     @Transactional
     public AjaxResult buyCardByToken(String memberCodeToken, Integer cardTypeId, BigDecimal paidAmount,
                                      String paymentType, String staffId, String staffName, Long deptId, String remark) {
-        Member tokenMember = memberCodeTokenService.consumeToken(memberCodeToken, "BUY_CARD");
+        Member tokenMember = memberCodeTokenService.verifyToken(memberCodeToken, "BUY_CARD");
         return buyCard(tokenMember.getId(), cardTypeId, paidAmount, paymentType, staffId, staffName, deptId, remark);
     }
 

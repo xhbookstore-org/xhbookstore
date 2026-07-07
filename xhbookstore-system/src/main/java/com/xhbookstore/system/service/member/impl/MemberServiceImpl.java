@@ -80,17 +80,20 @@ public class MemberServiceImpl implements IMemberService {
     }
 
     @Override
-    public String generateCardNo(Long deptId) {
-        // Get dept ERP ID as card prefix
+    public synchronized String generateCardNo(Long deptId) {
+        if (deptId == null) throw new IllegalArgumentException("deptId is required");
         String prefix = String.valueOf(deptId);
         SysDept dept = deptMapper.selectDeptById(deptId);
         if (dept != null && dept.getErpDeptId() != null) {
             prefix = String.valueOf(dept.getErpDeptId());
         }
+        if (prefix.length() >= 11) {
+            throw new IllegalArgumentException("Store code is too long for 11-digit member code");
+        }
 
         String maxCardNo = memberMapper.selectMaxCardNoByDept(prefix);
         long seq = 1;
-        if (maxCardNo != null && maxCardNo.length() >= 11) {
+        if (maxCardNo != null && maxCardNo.length() == 11) {
             String seqStr = maxCardNo.substring(prefix.length());
             try { seq = Long.parseLong(seqStr) + 1; } catch (NumberFormatException e) { /* start from 1 */ }
         }

@@ -39,6 +39,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         "/api/mp/v1/auth/wechat-phone-login",
         "/api/mp/v1/auth/refresh-token",
         "/api/mp/v1/auth/session",
+        "/api/mp/v1/stores",
         "/error"
     );
 
@@ -77,6 +78,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             request.setAttribute("isMember", claims.get("isMember"));
             request.setAttribute("isStaff", claims.get("isStaff"));
             request.setAttribute("memberId", claims.get("memberId"));
+            request.setAttribute("deptId", claims.get("deptId"));
             request.setAttribute("staffUserId", claims.get("staffUserId"));
             request.setAttribute("phone", claims.get("phone"));
         } catch (ExpiredJwtException e) {

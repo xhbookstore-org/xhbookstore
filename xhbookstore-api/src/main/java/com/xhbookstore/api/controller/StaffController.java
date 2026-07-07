@@ -82,7 +82,7 @@ public class StaffController {
         String memberCodeToken = stringValue(body.get("memberCodeToken"));
         if(memberCodeToken==null||memberCodeToken.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"memberCodeToken is required");
         Member tokenMember;
-        try { tokenMember = memberCodeTokenService.consumeToken(memberCodeToken,"BUY_CARD"); }
+        try { tokenMember = memberCodeTokenService.verifyToken(memberCodeToken,"BUY_CARD"); }
         catch (IllegalArgumentException e) { throw new ApiException(ApiErrorCode.PARAM_INVALID,e.getMessage()); }
         if(!String.valueOf(tokenMember.getId()).equals(memberId)) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Member code does not match path memberId");
         Integer cardTypeId=body.get("cardTypeId")!=null?Integer.valueOf(body.get("cardTypeId").toString()):null;

@@ -12,10 +12,16 @@
 
 | 方法 | 路径 | 说明 | 详细文档 |
 |---|---|---|---|
-| POST | `/auth/wechat-phone-login` | 微信手机号登录 | [auth/01-微信手机号登录.md](auth/01-微信手机号登录.md) |
+| POST | `/auth/wechat-phone-login` | 微信手机号登录；必传 `deptId`，新用户绑定门店并生成门店规则会员编号 | [auth/01-微信手机号登录.md](auth/01-微信手机号登录.md) |
 | POST | `/auth/refresh-token` | 刷新 Token | [auth/02-刷新Token.md](auth/02-刷新Token.md) |
-| GET | `/auth/session` | 校验登录态 | [auth/03-校验登录态.md](auth/03-校验登录态.md) |
+| GET | `/auth/session` | 校验登录态，返回 `memberId`、`deptId` 等身份信息 | [auth/03-校验登录态.md](auth/03-校验登录态.md) |
 | POST | `/auth/logout` | 退出登录 | [auth/04-退出登录.md](auth/04-退出登录.md) |
+
+## 公共模块
+
+| 方法 | 路径 | 说明 | 详细文档 |
+|---|---|---|---|
+| GET | `/stores` | 门店列表；注册登录前选择绑定门店使用 | [common/01-门店列表.md](common/01-门店列表.md) |
 
 ## 用户端
 
@@ -46,16 +52,16 @@
 | POST | `/staff/members/{memberId}/points/deduct` | 消耗积分 | [staff/11-消耗积分.md](staff/11-消耗积分.md) |
 | GET | `/staff/points-records` | 按数据权限查询积分列表 | [staff/12-查询全市积分列表.md](staff/12-查询全市积分列表.md) |
 | GET | `/staff/points-records/{pointsRecordId}` | 员工侧积分详情 | [staff/13-查询积分详情.md](staff/13-查询积分详情.md) |
-| POST | `/staff/members/{memberId}/activate-card` | 开通续费会员卡 | [staff/14-开通续费会员卡.md](staff/14-开通续费会员卡.md) |
+| POST | `/staff/members/{memberId}/activate-card` | 开通/续费会员卡；支持 `memberName`，`memberCodeToken` 只校验不消费 | [staff/14-开通续费会员卡.md](staff/14-开通续费会员卡.md) |
 | GET | `/staff/card-types` | 卡类型列表 | [staff/15-卡类型列表.md](staff/15-卡类型列表.md) |
-| POST | `/staff/member-cards/buy` | 按会员码购买会员卡 | [staff/16-按会员码购买会员卡.md](staff/16-按会员码购买会员卡.md) |
+| POST | `/staff/member-cards/buy` | 按会员码购买会员卡；`memberCodeToken` 只校验不消费 | [staff/16-按会员码购买会员卡.md](staff/16-按会员码购买会员卡.md) |
 
 ## 账号管理
 
 | 方法 | 路径 | 说明 | 详细文档 |
 |---|---|---|---|
 | GET | `/account/cancel-eligibility` | 注销资格查询 | [account/01-查询注销前置状态.md](account/01-查询注销前置状态.md) |
-| POST | `/account/cancel` | 注销账号，真实逻辑注销 | [account/02-注销账号.md](account/02-注销账号.md) |
+| POST | `/account/cancel` | 注销账号 | [account/02-注销账号.md](account/02-注销账号.md) |
 
 ## 文件上传
 

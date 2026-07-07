@@ -153,7 +153,9 @@
     </select>
 
     <select id="selectMaxCardNoByDept" parameterType="String" resultType="String">
-        select max(card_no) from member where card_no like concat(#{deptPrefix}, '%')
+        select max(card_no) from member
+        where card_no like concat(#{deptPrefix}, '%')
+          and char_length(card_no) = 11
     </select>
 
     <insert id="insertMember" parameterType="com.xhbookstore.system.domain.member.Member" useGeneratedKeys="true" keyProperty="id">
