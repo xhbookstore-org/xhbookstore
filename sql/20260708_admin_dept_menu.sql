@@ -1,8 +1,8 @@
--- Admin菜单调整：新增一级【部门管理】，并将【系统管理】、【部门管理】移入其下
+-- Admin菜单调整：新增一级【部门管理】，并将原二级【部门管理】移入其下
 -- 说明：
 -- 1. 新增一级目录 menu_id=1078，path=department。
--- 2. 原一级【系统管理】menu_id=1 改为新一级【部门管理】下的二级目录。
--- 3. 原【系统管理】下的【部门管理】menu_id=103 改为新一级【部门管理】下的二级菜单。
+-- 2. 原一级【系统管理】menu_id=1 保持一级菜单，排序放在一级【部门管理】下方。
+-- 3. 原【系统管理】下的二级【部门管理】menu_id=103 改为新一级【部门管理】下的二级菜单。
 -- 4. 给拥有原【系统管理】或原【部门管理】权限的角色补充分配新一级目录。
 
 START TRANSACTION;
@@ -15,12 +15,24 @@ SELECT @dept_menu_id, '部门管理', 0, 3, 'department', NULL, '', '', 1, 0, 'M
 WHERE NOT EXISTS (SELECT 1 FROM sys_menu WHERE menu_id = @dept_menu_id);
 
 UPDATE sys_menu
-SET parent_id = @dept_menu_id, order_num = 1, update_by = 'admin', update_time = NOW()
+SET parent_id = 0, order_num = 3, update_by = 'admin', update_time = NOW()
+WHERE menu_id = @dept_menu_id;
+
+UPDATE sys_menu
+SET parent_id = 0, order_num = 4, update_by = 'admin', update_time = NOW()
 WHERE menu_id = 1;
 
 UPDATE sys_menu
-SET parent_id = @dept_menu_id, order_num = 2, update_by = 'admin', update_time = NOW()
+SET parent_id = @dept_menu_id, order_num = 1, update_by = 'admin', update_time = NOW()
 WHERE menu_id = 103;
+
+UPDATE sys_menu
+SET order_num = 5, update_by = 'admin', update_time = NOW()
+WHERE menu_id = 2;
+
+UPDATE sys_menu
+SET order_num = 6, update_by = 'admin', update_time = NOW()
+WHERE menu_id = 3;
 
 INSERT INTO sys_role_menu(role_id, menu_id)
 SELECT DISTINCT rm.role_id, @dept_menu_id
