@@ -62,24 +62,11 @@ public class UserController {
         if (memberId != null) {
             Member member = memberService.selectMemberById(memberId);
             if (member != null) {
-                // 会员卡信息
-                Map<String, Object> card = new HashMap<>();
-                card.put("cardTypeId", member.getCardTypeId());
-                card.put("cardTypeName", member.getCardTypeName());
-                card.put("memberNo", member.getCardNo());
-                card.put("cardStatus", member.getStatus() != null && member.getStatus() == 0 ? "active" : "inactive");
-                card.put("level", member.getLevelId());
-                card.put("remainingDays", member.getValidDate() != null
-                        ? Math.max(0, (member.getValidDate().getTime() - System.currentTimeMillis()) / 86400000L)
-                        : 0);
-                card.put("effectiveAt", member.getCreatedAt() != null ? member.getCreatedAt().getTime() : null);
-                card.put("expiredAt", member.getValidDate() != null ? member.getValidDate().getTime() : null);
-
                 memberMap.put("memberId", member.getId());
                 memberMap.put("memberNo", member.getCardNo());
                 memberMap.put("memberName", member.getName());
                 memberMap.put("phoneDisplay", phoneDisplay);
-                memberMap.put("card", card);
+                memberMap.put("card", buildActiveMemberCard(member));
                 memberMap.put("currentPoints", member.getCurrentPoints() != null ? member.getCurrentPoints() : 0);
                 Map<String, Integer> borrowStats = borrowStats(member.getId());
                 memberMap.put("currentBorrowingCount", borrowStats.get("currentBorrowingCount"));
@@ -388,6 +375,26 @@ public class UserController {
         int r = d.getReturnedQty() != null ? d.getReturnedQty() : 0;
         int p = d.getPurchaseQty() != null ? d.getPurchaseQty() : 0;
         return b - r - p;
+    }
+
+    private Map<String, Object> buildActiveMemberCard(Member member) {
+        Map<String, Object> view = memberCardService.getMemberCardView(member.getId());
+        Object active = view.get("activeCard");
+        if (!(active instanceof MemberCard card)) {
+            return null;
+        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("cardTypeId", card.getCardTypeId());
+        data.put("cardTypeName", card.getCardTypeName());
+        data.put("memberNo", member.getCardNo());
+        data.put("cardStatus", "active");
+        data.put("level", member.getLevelId());
+        data.put("remainingDays", card.getExpiredAt() != null
+                ? Math.max(0, (card.getExpiredAt().getTime() - System.currentTimeMillis()) / 86400000L)
+                : 0);
+        data.put("effectiveAt", card.getEffectiveAt() != null ? card.getEffectiveAt().getTime() : null);
+        data.put("expiredAt", card.getExpiredAt() != null ? card.getExpiredAt().getTime() : null);
+        return data;
     }
 
     private Long parseLong(String value, String fieldName) {

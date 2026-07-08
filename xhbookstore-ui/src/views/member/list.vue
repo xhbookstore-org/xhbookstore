@@ -104,12 +104,12 @@
         <el-form-item label="电话" prop="phone">
           <el-input v-model="form.phone" placeholder="请输入手机号" maxlength="11" />
         </el-form-item>
-        <el-form-item label="会员类型" prop="cardTypeId">
+        <el-form-item v-if="!isEdit" label="会员类型" prop="cardTypeId">
           <el-select v-model="form.cardTypeId" placeholder="请选择会员类型" @change="calcValidDate" style="width:220px">
             <el-option v-for="ct in cardTypes" :key="ct.id" :label="ct.typeName" :value="ct.id" />
           </el-select>
         </el-form-item>
-        <el-form-item label="有效期" v-if="form.validDate">
+        <el-form-item v-if="!isEdit && form.validDate" label="有效期">
           <el-input v-model="form.validDate" :disabled="true" style="width:220px" />
           <span v-if="form.validDateTips" style="margin-left:10px;color:#999;font-size:12px">{{ form.validDateTips }}</span>
         </el-form-item>
@@ -548,7 +548,13 @@ export default {
       this.$refs.form.validate(valid => {
         if (!valid) return
         this.submitting = true
-        const api = this.isEdit ? updateMember(this.form.id, this.form) : addMember(this.form)
+        const payload = { ...this.form }
+        if (this.isEdit) {
+          delete payload.cardTypeId
+          delete payload.validDate
+          delete payload.validDateTips
+        }
+        const api = this.isEdit ? updateMember(this.form.id, payload) : addMember(payload)
         api.then(r => {
           if (r.code === 200) {
             this.$modal.msgSuccess(r.msg)

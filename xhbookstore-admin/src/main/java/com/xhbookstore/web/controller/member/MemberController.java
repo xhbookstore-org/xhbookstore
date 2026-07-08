@@ -64,6 +64,9 @@ public class MemberController extends BaseController {
     @PutMapping(value = "/{id}")
     public AjaxResult edit(@PathVariable Integer id, @RequestBody Member member) {
         member.setId(id);
+        // 会员卡身份必须通过开卡/续卡/退卡链路变更，避免资料编辑绕过订单、卡记录和日志。
+        member.setCardTypeId(null);
+        member.setValidDate(null);
         return memberService.updateMember(member, null);
     }
 
