@@ -119,7 +119,6 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
  			<if test="leader != null and leader != ''">#{leader},</if>
  			<if test="phone != null and phone != ''">#{phone},</if>
  			<if test="email != null and email != ''">#{email},</if>
- 			<if test="erpDeptId != null and erpDeptId != 0">erp_dept_id = #{erpDeptId},</if>
  			<if test="status != null">#{status},</if>
  			<if test="createBy != null and createBy != ''">#{createBy},</if>
  			<if test="erpDeptId != null">#{erpDeptId},</if>
