@@ -184,6 +184,22 @@ public class SysDeptServiceImpl implements ISysDeptService
         return UserConstants.UNIQUE;
     }
 
+    @Override
+    public boolean checkErpDeptIdUnique(SysDept dept)
+    {
+        if (dept.getErpDeptId() == null)
+        {
+            return UserConstants.UNIQUE;
+        }
+        Long deptId = StringUtils.isNull(dept.getDeptId()) ? -1L : dept.getDeptId();
+        SysDept info = deptMapper.checkErpDeptIdUnique(dept.getErpDeptId());
+        if (StringUtils.isNotNull(info) && info.getDeptId().longValue() != deptId.longValue())
+        {
+            return UserConstants.NOT_UNIQUE;
+        }
+        return UserConstants.UNIQUE;
+    }
+
     /**
      * 校验部门是否有数据权限
      * 

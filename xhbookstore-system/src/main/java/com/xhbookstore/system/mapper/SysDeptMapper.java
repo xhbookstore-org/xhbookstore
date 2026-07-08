@@ -80,6 +80,14 @@ public interface SysDeptMapper
     public SysDept checkDeptNameUnique(@Param("deptName") String deptName, @Param("parentId") Long parentId);
 
     /**
+     * 根据ERP部门ID查询部门信息
+     *
+     * @param erpDeptId ERP部门ID
+     * @return 部门信息
+     */
+    public SysDept checkErpDeptIdUnique(@Param("erpDeptId") Long erpDeptId);
+
+    /**
      * 新增部门信息
      * 
      * @param dept 部门信息

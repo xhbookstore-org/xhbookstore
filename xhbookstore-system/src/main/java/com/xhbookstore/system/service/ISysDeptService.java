@@ -92,6 +92,14 @@ public interface ISysDeptService
     public boolean checkDeptNameUnique(SysDept dept);
 
     /**
+     * 校验ERP部门ID是否唯一
+     *
+     * @param dept 部门信息
+     * @return 结果
+     */
+    public boolean checkErpDeptIdUnique(SysDept dept);
+
+    /**
      * 校验部门是否有数据权限
      * 
      * @param deptId 部门id

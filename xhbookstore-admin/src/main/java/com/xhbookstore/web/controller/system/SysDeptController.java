@@ -81,6 +81,10 @@ public class SysDeptController extends BaseController
         {
             return error("新增部门'" + dept.getDeptName() + "'失败，部门名称已存在");
         }
+        if (!deptService.checkErpDeptIdUnique(dept))
+        {
+            return error("新增部门'" + dept.getDeptName() + "'失败，ERP门店ID已存在");
+        }
         dept.setCreateBy(getUsername());
         return toAjax(deptService.insertDept(dept));
     }
@@ -98,6 +102,10 @@ public class SysDeptController extends BaseController
         if (!deptService.checkDeptNameUnique(dept))
         {
             return error("修改部门'" + dept.getDeptName() + "'失败，部门名称已存在");
+        }
+        else if (!deptService.checkErpDeptIdUnique(dept))
+        {
+            return error("修改部门'" + dept.getDeptName() + "'失败，ERP门店ID已存在");
         }
         else if (dept.getParentId().equals(deptId))
         {
