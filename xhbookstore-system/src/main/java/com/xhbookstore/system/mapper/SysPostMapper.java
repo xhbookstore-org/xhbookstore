@@ -26,6 +26,13 @@ public interface SysPostMapper
     public List<SysPost> selectPostAll();
 
     /**
+     * 查询启用岗位选项
+     *
+     * @return 岗位选项列表
+     */
+    public List<SysPost> selectPostOptionAll();
+
+    /**
      * 通过岗位ID查询岗位信息
      * 
      * @param postId 岗位ID

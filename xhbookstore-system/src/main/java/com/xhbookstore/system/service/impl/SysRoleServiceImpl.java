@@ -114,6 +114,12 @@ public class SysRoleServiceImpl implements ISysRoleService
         return SpringUtils.getAopProxy(this).selectRoleList(new SysRole());
     }
 
+    @Override
+    public List<SysRole> selectRoleOptionAll()
+    {
+        return roleMapper.selectRoleOptionAll();
+    }
+
     /**
      * 根据用户ID获取角色选择框列表
      * 

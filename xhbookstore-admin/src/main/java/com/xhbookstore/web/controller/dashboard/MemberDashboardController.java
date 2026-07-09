@@ -1,6 +1,7 @@
 package com.xhbookstore.web.controller.dashboard;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,12 +20,14 @@ public class MemberDashboardController extends BaseController {
     private IMemberDashboardService memberDashboardService;
 
     @GetMapping("/overview")
+    @PreAuthorize("@ss.hasPermi('dashboard:member:view')")
     public AjaxResult overview() {
         return success(memberDashboardService.getOverview());
     }
 
     @Log(title = "会员首页统计", businessType = BusinessType.UPDATE)
     @PostMapping("/refresh")
+    @PreAuthorize("@ss.hasPermi('dashboard:member:refresh')")
     public AjaxResult refresh() {
         boolean refreshed = memberDashboardService.refreshStatsWithLock();
         return refreshed ? success("刷新成功") : AjaxResult.warn("已有其他节点正在刷新，请稍后查看");

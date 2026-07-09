@@ -113,6 +113,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
         card.setCreateStaffName(staffName);
         card.setRemark(remark);
         memberCardMapper.insert(card);
+        rebuildPendingSchedule(member.getId(), staffId, staffName, "STAFF_MP");
 
         if (remark != null && !remark.trim().isEmpty()) {
             Member remarkUpdate = new Member();
@@ -194,6 +195,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
         MemberCard after = memberCardMapper.selectById(card.getId());
         writeLog(after, "REFUND_CARD", before, after, "status,refund_order_no,refunded_at",
                 reason, operatorId, operatorName, "ADMIN", refundOrderNo);
+        rebuildPendingSchedule(card.getMemberId(), operatorId, operatorName, "ADMIN");
         refreshMemberCardStatus(card.getMemberId(), operatorId, operatorName, "ADMIN");
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -215,6 +217,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
         Date nextStart = now;
         if (active != null && active.getExpiredAt() != null && active.getExpiredAt().after(now)) {
             syncMemberCurrentCard(memberId, active, operatorId);
+            rebuildPendingSchedule(memberId, operatorId, operatorName, device);
             return memberCardMapper.selectByMemberId(memberId);
         }
         if (active != null) {
@@ -225,19 +228,40 @@ public class MemberCardServiceImpl implements IMemberCardService {
             writeLog(after, "EXPIRE_CARD", before, after, "status",
                     "Active card expired", operatorId, operatorName, device, null);
         }
-        MemberCard pending = memberCardMapper.selectNextPendingByMemberIdForUpdate(memberId);
-        if (pending != null) {
-            Date effectiveAt = pending.getEffectiveAt() != null ? pending.getEffectiveAt() : nextStart;
-            Date expiredAt = pending.getExpiredAt() != null ? pending.getExpiredAt() : addDays(effectiveAt, pending.getValidDays());
+        boolean hasActiveCard = false;
+        while (true) {
+            MemberCard pending = memberCardMapper.selectNextPendingByMemberIdForUpdate(memberId);
+            if (pending == null) {
+                break;
+            }
+            if (pending.getValidDays() == null || pending.getValidDays() <= 0) {
+                break;
+            }
+            Date effectiveAt = nextStart;
+            Date expiredAt = addDays(effectiveAt, pending.getValidDays());
             MemberCard before = copyCard(pending);
             memberCardMapper.activate(pending.getId(), effectiveAt, expiredAt);
             MemberCard after = memberCardMapper.selectById(pending.getId());
-            syncMemberCurrentCard(memberId, after, operatorId);
             writeLog(after, "ACTIVATE_CARD", before, after, "status,effective_at,expired_at",
                     "Activate next pending card", operatorId, operatorName, device, null);
-        } else {
+
+            if (expiredAt.after(now)) {
+                syncMemberCurrentCard(memberId, after, operatorId);
+                hasActiveCard = true;
+                break;
+            }
+
+            MemberCard beforeExpire = copyCard(after);
+            nextStart = expiredAt;
+            memberCardMapper.expire(after.getId());
+            MemberCard expired = memberCardMapper.selectById(after.getId());
+            writeLog(expired, "EXPIRE_CARD", beforeExpire, expired, "status",
+                    "Activated card already expired during refresh", operatorId, operatorName, device, null);
+        }
+        if (!hasActiveCard) {
             memberMapper.updateCurrentCard(memberId, null, null, 0, operatorId);
         }
+        rebuildPendingSchedule(memberId, operatorId, operatorName, device);
         return memberCardMapper.selectByMemberId(memberId);
     }
 
@@ -326,6 +350,40 @@ public class MemberCardServiceImpl implements IMemberCardService {
             }
         }
         return startAt;
+    }
+
+    private void rebuildPendingSchedule(Integer memberId, String operatorId, String operatorName, String device) {
+        Date cursor = new Date();
+        MemberCard active = memberCardMapper.selectActiveByMemberIdForUpdate(memberId);
+        if (active != null && active.getExpiredAt() != null && active.getExpiredAt().after(cursor)) {
+            cursor = active.getExpiredAt();
+        }
+        List<MemberCard> pendingCards = memberCardMapper.selectPendingByMemberIdForUpdate(memberId);
+        if (pendingCards == null || pendingCards.isEmpty()) {
+            return;
+        }
+        for (MemberCard pending : pendingCards) {
+            if (pending.getValidDays() == null || pending.getValidDays() <= 0) {
+                continue;
+            }
+            Date effectiveAt = cursor;
+            Date expiredAt = addDays(effectiveAt, pending.getValidDays());
+            boolean changed = !sameTime(pending.getEffectiveAt(), effectiveAt) || !sameTime(pending.getExpiredAt(), expiredAt);
+            if (changed) {
+                MemberCard before = copyCard(pending);
+                memberCardMapper.updateSchedule(pending.getId(), effectiveAt, expiredAt);
+                MemberCard after = memberCardMapper.selectById(pending.getId());
+                writeLog(after, "REBUILD_CARD_QUEUE", before, after, "effective_at,expired_at",
+                        "Rebuild pending member card schedule", operatorId, operatorName, device, null);
+            }
+            cursor = expiredAt;
+        }
+    }
+
+    private boolean sameTime(Date left, Date right) {
+        if (left == null && right == null) return true;
+        if (left == null || right == null) return false;
+        return left.getTime() == right.getTime();
     }
 
     private Long millis(Date date) {

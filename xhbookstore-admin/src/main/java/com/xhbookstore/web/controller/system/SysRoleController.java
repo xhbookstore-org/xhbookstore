@@ -143,7 +143,12 @@ public class SysRoleController extends BaseController
     {
         roleService.checkRoleAllowed(role);
         roleService.checkRoleDataScope(role.getRoleId());
-        return toAjax(roleService.authDataScope(role));
+        int rows = roleService.authDataScope(role);
+        if (rows > 0)
+        {
+            tokenService.refreshPermissionByRoleId(role.getRoleId(), permissionService);
+        }
+        return toAjax(rows);
     }
 
     /**

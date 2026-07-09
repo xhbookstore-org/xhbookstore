@@ -24,12 +24,6 @@
             <span class="info-value plaintext">{{ info.phonenumber }}</span>
           </div>
         </el-col>
-        <el-col :span="12">
-          <div class="info-item">
-            <label class="info-label">邮箱：</label>
-            <span class="info-value plaintext">{{ info.email }}</span>
-          </div>
-        </el-col>
       </el-row>
       <el-row :gutter="20" class="mb8">
         <el-col :span="12">

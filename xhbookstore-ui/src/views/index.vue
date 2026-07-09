@@ -8,7 +8,7 @@
           <span v-if="overview.refreshedAt"> · 更新于 {{ overview.refreshedAt }}</span>
         </div>
       </div>
-      <el-button type="primary" icon="el-icon-refresh" size="small" :loading="refreshing" @click="handleRefresh">
+      <el-button type="primary" icon="el-icon-refresh" size="small" :loading="refreshing" @click="handleRefresh" v-hasPermi="['dashboard:member:refresh']">
         刷新统计
       </el-button>
     </div>

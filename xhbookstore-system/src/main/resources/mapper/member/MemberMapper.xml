@@ -89,7 +89,7 @@
             me.total_purchase_amount as totalPurchaseAmount,
             me.total_purchase_count as totalPurchaseCount,
             me.total_purchase_times as totalPurchaseTimes,
-            me.join_date as joinDate,
+            coalesce(me.join_date, date(m.created_at)) as joinDate,
             me.gender,
             me.age,
             m.remark,

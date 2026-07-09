@@ -48,6 +48,12 @@ public class SysPostServiceImpl implements ISysPostService
         return postMapper.selectPostAll();
     }
 
+    @Override
+    public List<SysPost> selectPostOptionAll()
+    {
+        return postMapper.selectPostOptionAll();
+    }
+
     /**
      * 通过岗位ID查询岗位信息
      * 

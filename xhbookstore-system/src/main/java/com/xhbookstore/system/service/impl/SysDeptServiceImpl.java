@@ -29,7 +29,7 @@ import com.xhbookstore.system.service.ISysDeptService;
 @Service
 public class SysDeptServiceImpl implements ISysDeptService
 {
-    private static final int MAX_NORMAL_DEPT_COUNT = 20;
+    private static final int MAX_NORMAL_DEPT_COUNT = 22;
 
     @Autowired
     private SysDeptMapper deptMapper;
@@ -282,7 +282,7 @@ public class SysDeptServiceImpl implements ISysDeptService
         int normalCount = deptMapper.countNormalDept(dept.getDeptId());
         if (normalCount >= MAX_NORMAL_DEPT_COUNT)
         {
-            throw new ServiceException("有效门店数量最多为20个");
+            throw new ServiceException("有效门店数量最多为22个");
         }
     }
 

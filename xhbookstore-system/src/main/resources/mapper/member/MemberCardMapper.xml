@@ -64,6 +64,13 @@
         limit 1 for update
     </select>
 
+    <select id="selectPendingByMemberIdForUpdate" parameterType="Integer" resultMap="MemberCardResult">
+        select * from member_card
+        where member_id = #{memberId} and status = 0 and is_del = 0
+        order by paid_at asc, id asc
+        for update
+    </select>
+
     <select id="selectByMemberId" parameterType="Integer" resultMap="MemberCardResult">
         select * from member_card
         where member_id = #{memberId} and is_del = 0
@@ -188,6 +195,12 @@
     <update id="activate">
         update member_card
         set status = 1, effective_at = #{effectiveAt}, expired_at = #{expiredAt}, updated_at = now()
+        where id = #{id} and status = 0 and is_del = 0
+    </update>
+
+    <update id="updateSchedule">
+        update member_card
+        set effective_at = #{effectiveAt}, expired_at = #{expiredAt}, updated_at = now()
         where id = #{id} and status = 0 and is_del = 0
     </update>
 

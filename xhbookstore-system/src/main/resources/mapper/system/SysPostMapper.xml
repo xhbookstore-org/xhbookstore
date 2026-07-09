@@ -40,6 +40,12 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 	<select id="selectPostAll" resultMap="SysPostResult">
 		<include refid="selectPostVo"/>
 	</select>
+
+	<select id="selectPostOptionAll" resultMap="SysPostResult">
+		<include refid="selectPostVo"/>
+		where status = '0'
+		order by post_sort, post_id
+	</select>
 	
 	<select id="selectPostById" parameterType="Long" resultMap="SysPostResult">
 		<include refid="selectPostVo"/>
