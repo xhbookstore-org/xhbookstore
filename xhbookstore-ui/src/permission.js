@@ -10,9 +10,33 @@ import { isRelogin } from '@/utils/request'
 NProgress.configure({ showSpinner: false })
 
 const whiteList = ['/login', '/register']
+const dashboardPath = '/index'
+const memberListPath = '/member/list'
+const allPermission = '*:*:*'
+const dashboardPermission = 'dashboard:member:view'
+const memberListPermission = 'member:member:list'
 
 const isWhiteList = (path) => {
   return whiteList.some(pattern => isPathMatch(pattern, path))
+}
+
+const hasPermission = (permission) => {
+  const permissions = store.getters && store.getters.permissions
+  return permissions.some(item => item === allPermission || item === permission)
+}
+
+const getDefaultPath = () => {
+  if (hasPermission(dashboardPermission)) {
+    return dashboardPath
+  }
+  if (hasPermission(memberListPermission)) {
+    return memberListPath
+  }
+  return dashboardPath
+}
+
+const shouldRedirectDashboard = (path) => {
+  return path === dashboardPath && getDefaultPath() !== dashboardPath
 }
 
 router.beforeEach((to, from, next) => {
@@ -20,7 +44,6 @@ router.beforeEach((to, from, next) => {
   if (getToken()) {
     to.meta.title && store.dispatch('settings/setTitle', to.meta.title)
     const isLock = store.getters.isLock
-    /* has token*/
     if (to.path === '/login') {
       next({ path: '/' })
       NProgress.done()
@@ -35,13 +58,15 @@ router.beforeEach((to, from, next) => {
     } else {
       if (store.getters.roles.length === 0) {
         isRelogin.show = true
-        // 判断当前用户是否已拉取完user_info信息
         store.dispatch('GetInfo').then(() => {
           isRelogin.show = false
           store.dispatch('GenerateRoutes').then(accessRoutes => {
-            // 根据roles权限生成可访问的路由表
-            router.addRoutes(accessRoutes) // 动态添加可访问路由表
-            next({ ...to, replace: true }) // hack方法 确保addRoutes已完成
+            router.addRoutes(accessRoutes)
+            if (shouldRedirectDashboard(to.path)) {
+              next({ path: getDefaultPath(), replace: true })
+              return
+            }
+            next({ ...to, replace: true })
           })
         }).catch(err => {
           store.dispatch('LogOut').then(() => {
@@ -50,16 +75,18 @@ router.beforeEach((to, from, next) => {
           })
         })
       } else {
+        if (shouldRedirectDashboard(to.path)) {
+          next({ path: getDefaultPath(), replace: true })
+          return
+        }
         next()
       }
     }
   } else {
-    // 没有token
     if (isWhiteList(to.path)) {
-      // 在免登录白名单，直接进入
       next()
     } else {
-      next(`/login?redirect=${encodeURIComponent(to.fullPath)}`) // 否则全部重定向到登录页
+      next(`/login?redirect=${encodeURIComponent(to.fullPath)}`)
       NProgress.done()
     }
   }
