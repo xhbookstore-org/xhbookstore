@@ -160,7 +160,7 @@ public class StaffController {
 
     @Operation(summary = "Borrow list")
     @GetMapping("/borrows")
-    public ApiResponse<Map<String,Object>> borrowsList(@RequestParam(required=false) String phone,@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int pageNo,@RequestParam(defaultValue="20") int pageSize,HttpServletRequest request){ Integer statusValue=status!=null&&!status.isEmpty()?Integer.parseInt(status):null; List<BookBorrowOrder> orders=bookBorrowService.selectList(phone,statusValue,visibleDeptIds(request)); List<Map<String,Object>> list=flattenBorrowDetails(orders,"all"); Map<String,Object> data=new HashMap<>(); data.put("page",page(list,pageNo,pageSize)); return ApiResponse.success(data); }
+    public ApiResponse<Map<String,Object>> borrowsList(@RequestParam(required=false) String phone,@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int pageNo,@RequestParam(defaultValue="20") int pageSize,HttpServletRequest request){ Integer statusValue=status!=null&&!status.isEmpty()?Integer.parseInt(status):null; List<BookBorrowOrder> orders=bookBorrowService.selectList(phone,statusValue,null); List<Map<String,Object>> list=flattenBorrowDetails(orders,"all"); Map<String,Object> data=new HashMap<>(); data.put("page",page(list,pageNo,pageSize)); return ApiResponse.success(data); }
 
     @Operation(summary = "Borrow detail")
     @GetMapping("/borrows/{detailId}")

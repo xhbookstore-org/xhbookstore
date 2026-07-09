@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import com.xhbookstore.common.annotation.DataScope;
 import com.xhbookstore.common.annotation.Log;
 import com.xhbookstore.common.enums.BusinessType;
 import com.xhbookstore.common.core.controller.BaseController;
@@ -30,7 +29,6 @@ public class MemberController extends BaseController {
     @Autowired private IPointsService pointsService;
 
     @PreAuthorize("@ss.hasPermi('member:member:list')")
-    @DataScope(deptAlias = "m")
     @GetMapping("/list")
     public TableDataInfo list(Member member) {
         startPage();
@@ -123,7 +121,6 @@ public class MemberController extends BaseController {
 
     @PreAuthorize("@ss.hasPermi('member:member:export')")
     @Log(title = "会员管理", businessType = BusinessType.EXPORT)
-    @DataScope(deptAlias = "m")
     @PostMapping("/export")
     public void export(HttpServletResponse response, Member member) {
         List<MemberExport> list = memberService.selectMemberExportList(member);

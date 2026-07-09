@@ -65,11 +65,6 @@ public class ApiIdentityInterceptor implements HandlerInterceptor {
             writeJson(response, HttpServletResponse.SC_FORBIDDEN, ApiErrorCode.FORBIDDEN, "员工账号已停用或不存在");
             return false;
         }
-        Long resourceDeptId = resolveStaffResourceDeptId(request);
-        if (resourceDeptId != null && !visibleDeptIds(staff).contains(resourceDeptId)) {
-            writeJson(response, HttpServletResponse.SC_FORBIDDEN, ApiErrorCode.FORBIDDEN, "无权访问该门店数据");
-            return false;
-        }
         return true;
     }
 
