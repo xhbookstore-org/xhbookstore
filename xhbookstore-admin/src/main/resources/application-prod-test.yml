@@ -1,0 +1,56 @@
+# ============================================================
+# Admin 模块 - 生产测试环境配置 (prod-test)
+# 运行方式: java -jar xhbookstore-admin.jar --spring.profiles.active=prod-test
+# 数据库使用轻量数据库公网地址，可通过环境变量覆盖：
+#   PROD_TEST_DB_HOST / PROD_TEST_DB_PORT / PROD_TEST_DB_NAME / PROD_TEST_DB_USERNAME / PROD_TEST_DB_PASSWORD
+# ============================================================
+
+spring:
+  datasource:
+    druid:
+      master:
+        url: jdbc:mysql://${PROD_TEST_DB_HOST:bj-cynosdbmysql-grp-5hw57ofu.sql.tencentcdb.com}:${PROD_TEST_DB_PORT:26487}/${PROD_TEST_DB_NAME:xhbookstore}?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&characterSetResults=utf8mb4&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+        username: ${PROD_TEST_DB_USERNAME:root}
+        password: ${PROD_TEST_DB_PASSWORD}
+      initialSize: 20
+      minIdle: 20
+      maxActive: 200
+      maxWait: 60000
+      webStatFilter:
+        enabled: false
+      statViewServlet:
+        enabled: false
+  data:
+    redis:
+      host: ${PROD_TEST_REDIS_HOST:43.138.104.168}
+      port: ${PROD_TEST_REDIS_PORT:6379}
+      password: ${PROD_TEST_REDIS_PASSWORD}
+      database: ${PROD_TEST_REDIS_DATABASE:0}
+      timeout: 10s
+      lettuce:
+        pool:
+          min-idle: 10
+          max-idle: 50
+          max-active: 100
+  devtools:
+    restart:
+      enabled: false
+
+xhbookstore:
+  name: XhBookstore
+  version: 3.9.2
+  copyrightYear: 2026
+  profile: /data/xhbookstore/uploadPath
+  addressEnabled: false
+  captchaType: math
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
+logging:
+  level:
+    com.xhbookstore: warn
+    org.springframework: error

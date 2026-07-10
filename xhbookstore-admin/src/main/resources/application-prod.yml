@@ -8,9 +8,9 @@ spring:
   datasource:
     druid:
       master:
-        url: jdbc:mysql://localhost:3306/xhbookstore?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&characterSetResults=utf8mb4&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
-        username: xhbookstore_prod
-        password: prod-db-password
+        url: jdbc:mysql://${PROD_DB_HOST:10.2.0.13}:${PROD_DB_PORT:3306}/${PROD_DB_NAME:xhbookstore}?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&characterSetResults=utf8mb4&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true
+        username: ${PROD_DB_USERNAME:root}
+        password: ${PROD_DB_PASSWORD}
       initialSize: 20
       minIdle: 20
       maxActive: 200
@@ -23,7 +23,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: xhbookstore_prod_redis
+      password: ${PROD_REDIS_PASSWORD}
       database: 0
       timeout: 10s
       lettuce:

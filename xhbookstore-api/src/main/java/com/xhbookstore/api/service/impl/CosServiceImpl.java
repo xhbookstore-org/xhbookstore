@@ -42,7 +42,7 @@ public class CosServiceImpl implements ICosService {
             PutObjectRequest putRequest = new PutObjectRequest(cosConfig.getBucket(), key, inputStream, metadata);
             cosClient.putObject(putRequest);
 
-            String url = cosConfig.getBaseUrl() + "/" + key;
+            String url = trimTrailingSlash(cosConfig.getBaseUrl()) + "/" + key;
             String thumbUrl = url + "?imageMogr2/thumbnail/400x";
 
             Map<String, String> result = new HashMap<>();
@@ -63,5 +63,13 @@ public class CosServiceImpl implements ICosService {
     private String getFileExt(String fileName) {
         if (fileName == null || !fileName.contains(".")) return ".jpg";
         return fileName.substring(fileName.lastIndexOf("."));
+    }
+
+    private String trimTrailingSlash(String value) {
+        if (value == null) return "";
+        while (value.endsWith("/")) {
+            value = value.substring(0, value.length() - 1);
+        }
+        return value;
     }
 }
