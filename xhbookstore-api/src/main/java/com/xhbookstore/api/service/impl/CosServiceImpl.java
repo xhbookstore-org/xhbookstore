@@ -60,6 +60,18 @@ public class CosServiceImpl implements ICosService {
         }
     }
 
+    @Override
+    public void delete(String key) {
+        if (key == null || key.isBlank()) return;
+        COSCredentials cred = new BasicCOSCredentials(cosConfig.getSecretId(), cosConfig.getSecretKey());
+        COSClient cosClient = new COSClient(cred, new ClientConfig(new Region(cosConfig.getRegion())));
+        try {
+            cosClient.deleteObject(cosConfig.getBucket(), key);
+        } finally {
+            cosClient.shutdown();
+        }
+    }
+
     private String getFileExt(String fileName) {
         if (fileName == null || !fileName.contains(".")) return ".jpg";
         return fileName.substring(fileName.lastIndexOf("."));

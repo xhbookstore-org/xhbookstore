@@ -58,7 +58,7 @@ cos:
   secret-key: ${COS_SECRET_KEY}
   region: ${COS_REGION:ap-beijing}
   bucket: ${COS_BUCKET:xhbookstore-1305348572}
-  base-url: ${COS_BASE_URL:https://cfxinhua.cn}
+  base-url: ${COS_BASE_URL:https://img.cfxinhua.cn}
   max-file-size: 10485760
 
 logging:

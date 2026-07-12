@@ -30,6 +30,11 @@ public interface IBookBorrowService {
     List<BookBorrowDetail> selectDetailsByOrderId(Long orderId);
 
     BookBorrowDetail selectDetailById(Long detailId);
+    List<Map<String, Object>> selectBorrowDetailPage(String phone, Integer status, Integer memberId,
+                                                     boolean borrowingOnly, int offset, int limit);
+    long countBorrowDetailPage(String phone, Integer status, Integer memberId, boolean borrowingOnly);
+    int countBorrowOrdersByMemberId(Integer memberId);
+    int sumRemainingByMemberId(Integer memberId);
 
     List<BookReturnDetail> selectReturnsByOrderId(Long orderId);
 }

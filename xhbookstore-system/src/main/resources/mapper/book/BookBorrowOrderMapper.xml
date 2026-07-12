@@ -84,6 +84,10 @@
           and borrow_time &lt; date_add(current_date(), interval 1 day)
     </select>
 
+    <select id="countByMemberId" resultType="int">
+        select count(1) from book_borrow_order where member_id = #{memberId} and is_del = 0
+    </select>
+
     <update id="updateStatus" parameterType="com.xhbookstore.system.domain.book.BookBorrowOrder">
         update book_borrow_order
         <set>

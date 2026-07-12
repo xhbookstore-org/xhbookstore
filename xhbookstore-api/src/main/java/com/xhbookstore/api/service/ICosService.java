@@ -16,4 +16,6 @@ public interface ICosService {
      * @return {imageId, url, thumbUrl, fileName}
      */
     Map<String, String> upload(InputStream inputStream, String fileName, String contentType, String folder);
+
+    void delete(String key);
 }

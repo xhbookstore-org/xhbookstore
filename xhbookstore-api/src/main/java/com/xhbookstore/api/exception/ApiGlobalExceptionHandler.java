@@ -13,6 +13,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 import com.xhbookstore.api.constant.ApiErrorCode;
 import com.xhbookstore.api.model.ApiResponse;
+import com.xhbookstore.system.service.book.BookBorrowException;
 
 /**
  * 全局异常处理
@@ -26,6 +27,16 @@ public class ApiGlobalExceptionHandler {
     public ApiResponse<?> handleApiException(ApiException e, HttpServletRequest request) {
         log.warn("[API异常] path={}, code={}, message={}", request.getRequestURI(), e.getCode(), e.getMessage());
         return ApiResponse.error(e.getCode(), e.getMessage());
+    }
+
+    @ExceptionHandler(BookBorrowException.class)
+    public ApiResponse<?> handleBookBorrowException(BookBorrowException e, HttpServletRequest request) {
+        String path = request.getRequestURI();
+        int code = path.contains("/borrow-returns") || path.contains("/borrow-purchases")
+                ? ApiErrorCode.BORROW_RETURN_DENIED
+                : ApiErrorCode.BORROW_DENIED;
+        log.warn("[API business exception] path={}, code={}, message={}", path, code, e.getMessage());
+        return ApiResponse.error(code, e.getMessage());
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, BindException.class})

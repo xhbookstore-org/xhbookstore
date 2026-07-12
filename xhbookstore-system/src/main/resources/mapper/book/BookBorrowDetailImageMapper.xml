@@ -10,4 +10,11 @@
             #{imageId}, #{imageName}, #{imageUrl}, #{thumbUrl}, #{sortOrder}, #{imageType}, 0,
             #{createStaffId}, #{createStaffName}, now())
     </insert>
+
+    <select id="countByDetailAndType" resultType="int">
+        select count(1) from book_borrow_detail_image
+        where borrow_detail_id = #{borrowDetailId}
+          and image_type = #{imageType}
+          and image_status = 0
+    </select>
 </mapper>

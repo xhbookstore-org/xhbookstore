@@ -8,4 +8,11 @@
         values (#{bookId}, #{imageId}, #{imageName}, #{imageUrl}, #{thumbUrl},
             #{sortOrder}, #{imageType}, 0, #{createStaffId}, #{createStaffName}, now())
     </insert>
+
+    <select id="countByBookAndType" resultType="int">
+        select count(1) from book_image
+        where book_id = #{bookId}
+          and image_type = #{imageType}
+          and image_status = 0
+    </select>
 </mapper>

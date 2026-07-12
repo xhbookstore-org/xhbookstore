@@ -32,5 +32,11 @@ public interface IPointsService {
      */
     List<PointsOrder> selectByMemberId(Integer memberId);
 
+    List<PointsOrder> selectPage(String phone, Integer memberId, String direction, int offset, int limit);
+
+    long countPage(String phone, Integer memberId, String direction);
+
+    int sumYearEarned(Integer memberId);
+
     PointsOrder selectByOrderNumber(String orderNumber);
 }

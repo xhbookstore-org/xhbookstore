@@ -55,4 +55,41 @@
         order by created_at desc
     </select>
 
+    <sql id="pointsPageFromWhere">
+        from xhbs_points_order p
+        left join member m on m.id = p.member_id
+        where p.is_del = 0
+        <if test="phone != null and phone != ''">
+            and m.phone like concat('%', #{phone}, '%')
+        </if>
+        <if test="memberId != null">
+            and p.member_id = #{memberId}
+        </if>
+        <if test="direction == 'add'">
+            and p.amount &gt; 0
+        </if>
+        <if test="direction == 'deduct'">
+            and p.amount &lt; 0
+        </if>
+    </sql>
+
+    <select id="selectPage" resultMap="PointsOrderResult">
+        select p.*
+        <include refid="pointsPageFromWhere"/>
+        order by p.created_at desc, p.id desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        select count(1)
+        <include refid="pointsPageFromWhere"/>
+    </select>
+
+    <select id="sumYearEarned" resultType="int">
+        select coalesce(sum(amount), 0) from xhbs_points_order
+        where member_id = #{memberId} and is_del = 0 and amount &gt; 0
+          and created_at &gt;= makedate(year(current_date()), 1)
+          and created_at &lt; makedate(year(current_date()) + 1, 1)
+    </select>
+
 </mapper>

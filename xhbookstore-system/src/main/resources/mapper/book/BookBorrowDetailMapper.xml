@@ -52,6 +52,51 @@
         order by created_at desc
     </select>
 
+    <sql id="detailPageFromWhere">
+        from book_borrow_detail d
+        inner join book_borrow_order o on o.id = d.borrow_order_id and o.is_del = 0
+        where d.is_del = 0
+        <if test="phone != null and phone != ''">
+            and o.member_phone like concat('%', #{phone}, '%')
+        </if>
+        <if test="status != null">
+            and d.borrow_status = #{status}
+        </if>
+        <if test="memberId != null">
+            and d.member_id = #{memberId}
+        </if>
+        <if test="borrowingOnly">
+            and d.borrow_qty &gt; coalesce(d.returned_qty, 0) + coalesce(d.purchase_qty, 0)
+        </if>
+    </sql>
+
+    <select id="selectPage" resultType="java.util.LinkedHashMap">
+        select d.id as detailId, d.id as borrowDetailId, d.borrow_order_no as orderNo,
+               d.member_id as memberId, d.book_id as bookId, d.book_name as bookName,
+               d.borrow_status as borrowStatus, d.borrow_qty as borrowQty,
+               coalesce(d.returned_qty, 0) as returnedQty,
+               coalesce(d.purchase_qty, 0) as purchaseQty,
+               d.borrow_qty - coalesce(d.returned_qty, 0) - coalesce(d.purchase_qty, 0) as remainingQty,
+               d.purchase_order_no as purchaseOrderNo,
+               cast(unix_timestamp(d.borrow_time) * 1000 as signed) as borrowTime,
+               cast(unix_timestamp(coalesce(d.return_all_time, o.return_all_time)) * 1000 as signed) as returnAllTime,
+               cast(unix_timestamp(o.expected_return_time) * 1000 as signed) as expectedReturnTime,
+               coalesce(d.remark, o.remark) as remark
+        <include refid="detailPageFromWhere"/>
+        order by d.borrow_time desc, d.id desc
+        limit #{limit} offset #{offset}
+    </select>
+
+    <select id="countPage" resultType="long">
+        select count(1)
+        <include refid="detailPageFromWhere"/>
+    </select>
+
+    <select id="sumRemainingByMemberId" resultType="int">
+        select coalesce(sum(greatest(0, borrow_qty - coalesce(returned_qty, 0) - coalesce(purchase_qty, 0))), 0)
+        from book_borrow_detail where member_id = #{memberId} and is_del = 0
+    </select>
+
     <update id="updateReturnInfo" parameterType="com.xhbookstore.system.domain.book.BookBorrowDetail">
         update book_borrow_detail
         <set>

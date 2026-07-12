@@ -45,6 +45,9 @@ public class ApiIdentityInterceptor implements HandlerInterceptor {
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String uri = request.getRequestURI();
+        if (PATH_MATCHER.match("/api/mp/v1/files/**", uri)) {
+            return requireFileUploader(request, response);
+        }
         if (PATH_MATCHER.match("/api/mp/v1/staff/**", uri)) {
             return requireStaff(request, response);
         }
@@ -52,6 +55,13 @@ public class ApiIdentityInterceptor implements HandlerInterceptor {
             return requireMember(request, response);
         }
         return true;
+    }
+
+    private boolean requireFileUploader(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        if (boolAttr(request, "isStaff")) {
+            return requireStaff(request, response);
+        }
+        return requireMember(request, response);
     }
 
     private boolean requireStaff(HttpServletRequest request, HttpServletResponse response) throws IOException {

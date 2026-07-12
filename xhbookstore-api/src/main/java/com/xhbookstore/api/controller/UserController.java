@@ -172,26 +172,21 @@ public class UserController {
             @RequestParam(defaultValue = "1") int pageNo,
             @RequestParam(defaultValue = "20") int pageSize,
             HttpServletRequest request) {
+        validatePage(pageNo, pageSize);
         Integer memberId = currentMemberId(request);
-        List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(memberId);
-        if (orders == null) orders = Collections.emptyList();
-        List<Map<String, Object>> records = new ArrayList<>();
-        int currentBorrowingCount = 0;
-        for (BookBorrowOrder o : orders) {
-            List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(o.getId());
-            if (details == null) continue;
-            for (BookBorrowDetail d : details) {
-                records.add(buildBorrowItem(o, d));
-                currentBorrowingCount += Math.max(0, remainingQty(d));
-            }
-        }
+        int offset = (pageNo - 1) * pageSize;
+        List<Map<String, Object>> records = bookBorrowService.selectBorrowDetailPage(
+                null, null, memberId, false, offset, pageSize);
+        long total = bookBorrowService.countBorrowDetailPage(null, null, memberId, false);
+        int currentBorrowingCount = bookBorrowService.sumRemainingByMemberId(memberId);
+        int borrowOrderCount = bookBorrowService.countBorrowOrdersByMemberId(memberId);
 
         String phone = (String) request.getAttribute("phone");
         Map<String, Object> data = new HashMap<>();
         data.put("memberDisplay", maskPhone(phone));
-        data.put("yearBorrowCount", orders.size());
+        data.put("yearBorrowCount", borrowOrderCount);
         data.put("currentBorrowingCount", currentBorrowingCount);
-        data.put("page", page(records, pageNo, pageSize));
+        data.put("page", new PageResult<>(records, pageNo, pageSize, total));
         return ApiResponse.success(data);
     }
 
@@ -232,13 +227,13 @@ public class UserController {
             @RequestParam(defaultValue = "1") int pageNo,
             @RequestParam(defaultValue = "20") int pageSize,
             HttpServletRequest request) {
+        validatePage(pageNo, pageSize);
         Integer memberId = currentMemberId(request);
         Member member = memberService.selectMemberById(memberId);
-        List<PointsOrder> orders = pointsService.selectByMemberId(memberId);
-        if (orders == null) orders = Collections.emptyList();
+        int offset = (pageNo - 1) * pageSize;
+        List<PointsOrder> orders = pointsService.selectPage(null, memberId, null, offset, pageSize);
+        long total = pointsService.countPage(null, memberId, null);
         List<Map<String, Object>> records = new ArrayList<>();
-        int yearEarnedPoints = 0;
-        Calendar now = Calendar.getInstance();
         for (PointsOrder o : orders) {
             Map<String, Object> r = new HashMap<>();
             r.put("pointsRecordId", o.getOrderNumber());
@@ -249,20 +244,13 @@ public class UserController {
             r.put("afterPoints", o.getAfterPoints());
             r.put("operatedAt", o.getCreatedAt().getTime());
             records.add(r);
-            if (o.getOrderNumber() != null && o.getOrderNumber().startsWith("IN") && o.getCreatedAt() != null) {
-                Calendar created = Calendar.getInstance();
-                created.setTime(o.getCreatedAt());
-                if (created.get(Calendar.YEAR) == now.get(Calendar.YEAR) && o.getAmount() != null) {
-                    yearEarnedPoints += o.getAmount();
-                }
-            }
         }
         String phone2 = (String) request.getAttribute("phone");
         Map<String, Object> data = new HashMap<>();
         data.put("memberDisplay", maskPhone(phone2));
         data.put("currentPoints", member != null && member.getCurrentPoints() != null ? member.getCurrentPoints() : 0);
-        data.put("yearEarnedPoints", yearEarnedPoints);
-        data.put("page", page(records, pageNo, pageSize));
+        data.put("yearEarnedPoints", pointsService.sumYearEarned(memberId));
+        data.put("page", new PageResult<>(records, pageNo, pageSize, total));
         return ApiResponse.success(data);
     }
 
@@ -302,12 +290,15 @@ public class UserController {
         return Integer.valueOf(memberIdObj.toString());
     }
 
-    private <T> PageResult<T> page(List<T> records, int pageNo, int pageSize) {
-        int safePageNo = Math.max(pageNo, 1);
-        int safePageSize = Math.max(pageSize, 1);
-        int from = Math.min((safePageNo - 1) * safePageSize, records.size());
-        int to = Math.min(from + safePageSize, records.size());
-        return new PageResult<>(records.subList(from, to), safePageNo, safePageSize, records.size());
+    private void validatePage(int pageNo, int pageSize) {
+        if (pageNo < 1) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.PARAM_INVALID, "pageNo must be greater than 0");
+        }
+        if (pageSize < 1 || pageSize > 100) {
+            throw new com.xhbookstore.api.exception.ApiException(
+                    com.xhbookstore.api.constant.ApiErrorCode.PARAM_INVALID, "pageSize must be between 1 and 100");
+        }
     }
 
     private Map<String, Object> buildBorrowItem(BookBorrowOrder o, BookBorrowDetail d) {

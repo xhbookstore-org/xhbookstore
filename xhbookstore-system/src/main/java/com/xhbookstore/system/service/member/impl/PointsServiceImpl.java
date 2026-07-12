@@ -193,6 +193,21 @@ public class PointsServiceImpl implements IPointsService {
     }
 
     @Override
+    public List<PointsOrder> selectPage(String phone, Integer memberId, String direction, int offset, int limit) {
+        return pointsOrderMapper.selectPage(phone, memberId, direction, offset, limit);
+    }
+
+    @Override
+    public long countPage(String phone, Integer memberId, String direction) {
+        return pointsOrderMapper.countPage(phone, memberId, direction);
+    }
+
+    @Override
+    public int sumYearEarned(Integer memberId) {
+        return pointsOrderMapper.sumYearEarned(memberId);
+    }
+
+    @Override
     public PointsOrder selectByOrderNumber(String orderNumber) {
         return pointsOrderMapper.selectByOrderNumber(orderNumber);
     }

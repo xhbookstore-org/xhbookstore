@@ -13,6 +13,7 @@ import com.xhbookstore.system.domain.book.*;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.mapper.book.*;
 import com.xhbookstore.system.service.book.IBookBorrowService;
+import com.xhbookstore.system.service.book.BookBorrowException;
 
 @Service
 public class BookBorrowServiceImpl implements IBookBorrowService {
@@ -35,31 +36,25 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
                                          String remark, String staffId, String staffName, Long deptId,
                                          List<String> imageUrls) {
         Member member = memberMapper.selectMemberById(memberId);
-        if (member == null) return AjaxResult.error("Member not found");
-        if (books == null || books.isEmpty()) return AjaxResult.error("At least one book is required");
+        if (member == null) throw new BookBorrowException("Member not found");
+        if (books == null || books.isEmpty()) throw new BookBorrowException("At least one book is required");
 
         String traceId = newTraceId();
         String orderNo = generateOrderNo("DY");
         int totalQty = 0;
         List<BookBorrowDetail> details = new ArrayList<>();
+        Map<Long, Integer> requestedQtyByBook = new LinkedHashMap<>();
+        Map<Long, BookInfo> lockedBooks = new LinkedHashMap<>();
 
         for (Map<String, Object> bookItem : books) {
             Long bookId = toLong(bookItem.get("bookId"));
             int qty = toInt(bookItem.get("borrowQty"), 1);
-            if (bookId == null) return AjaxResult.error("Book is required");
-            if (qty <= 0) return AjaxResult.error("Borrow quantity must be greater than 0");
+            if (bookId == null) throw new BookBorrowException("Book is required");
+            if (qty <= 0) throw new BookBorrowException("Borrow quantity must be greater than 0");
 
-            BookInfo beforeBook = bookInfoMapper.selectByIdForUpdate(bookId);
-            if (beforeBook == null) return AjaxResult.error("Book not found: " + bookId);
-            if (safeInt(beforeBook.getLendableQty()) < qty) {
-                return AjaxResult.error("Not enough lendable stock: " + beforeBook.getBookName());
-            }
-            if (bookInfoMapper.decreaseLendableQty(bookId, qty) != 1) {
-                return AjaxResult.error("Not enough lendable stock: " + beforeBook.getBookName());
-            }
-            BookInfo afterBook = bookInfoMapper.selectById(bookId);
-            writeBookHistory(bookId, 2, beforeBook, afterBook, "lendable_qty",
-                    "BORROW_DECREASE_LENDABLE", orderNo, 1, staffId, staffName);
+            BookInfo beforeBook = lockedBooks.computeIfAbsent(bookId, bookInfoMapper::selectByIdForUpdate);
+            if (beforeBook == null) throw new BookBorrowException("Book not found: " + bookId);
+            requestedQtyByBook.merge(bookId, qty, Integer::sum);
 
             BookBorrowDetail detail = new BookBorrowDetail();
             detail.setBorrowOrderNo(orderNo);
@@ -72,6 +67,24 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             detail.setFirstStaffName(staffName);
             details.add(detail);
             totalQty += qty;
+        }
+
+        for (Map.Entry<Long, Integer> entry : requestedQtyByBook.entrySet()) {
+            BookInfo beforeBook = lockedBooks.get(entry.getKey());
+            if (safeInt(beforeBook.getLendableQty()) < entry.getValue()) {
+                throw new BookBorrowException("Not enough lendable stock: " + beforeBook.getBookName());
+            }
+        }
+
+        for (Map.Entry<Long, Integer> entry : requestedQtyByBook.entrySet()) {
+            Long bookId = entry.getKey();
+            BookInfo beforeBook = lockedBooks.get(bookId);
+            if (bookInfoMapper.decreaseLendableQty(bookId, entry.getValue()) != 1) {
+                throw new BookBorrowException("Not enough lendable stock: " + beforeBook.getBookName());
+            }
+            BookInfo afterBook = bookInfoMapper.selectById(bookId);
+            writeBookHistory(bookId, 2, beforeBook, afterBook, "lendable_qty",
+                    "BORROW_DECREASE_LENDABLE", orderNo, 1, staffId, staffName);
         }
 
         BookBorrowOrder order = new BookBorrowOrder();
@@ -128,8 +141,28 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     public AjaxResult returnBook(String borrowOrderNo, List<Map<String, Object>> returnItems,
                                   String staffId, String staffName, Long deptId) {
         BookBorrowOrder order = orderMapper.selectByOrderNo(borrowOrderNo);
-        if (order == null) return AjaxResult.error("Borrow order not found");
-        if (returnItems == null || returnItems.isEmpty()) return AjaxResult.error("Return items are required");
+        if (order == null) throw new BookBorrowException("Borrow order not found");
+        if (returnItems == null || returnItems.isEmpty()) throw new BookBorrowException("Return items are required");
+
+        Set<Long> returnDetailIds = new HashSet<>();
+        for (Map<String, Object> item : returnItems) {
+            Long detailId = toLong(item.get("borrowDetailId"));
+            int returnQty = toInt(item.get("returnQty"), 0);
+            if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
+            if (returnQty <= 0) throw new BookBorrowException("Return quantity must be greater than 0");
+            if (!returnDetailIds.add(detailId)) throw new BookBorrowException("Duplicate borrow detail: " + detailId);
+
+            BookBorrowDetail detail = detailMapper.selectByIdForUpdate(detailId);
+            if (detail == null || !order.getId().equals(detail.getBorrowOrderId())) {
+                throw new BookBorrowException("Borrow detail not found: " + detailId);
+            }
+            if (returnQty > remainingQty(detail)) {
+                throw new BookBorrowException("Return quantity exceeds remaining quantity: " + detail.getBookName());
+            }
+            if (detail.getBookId() != null && bookInfoMapper.selectByIdForUpdate(detail.getBookId()) == null) {
+                throw new BookBorrowException("Book not found: " + detail.getBookId());
+            }
+        }
 
         String traceId = newTraceId();
         int totalReturned = 0;
@@ -140,15 +173,15 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             int returnQty = toInt(item.get("returnQty"), 0);
             int returnType = toInt(item.get("returnType"), 1);
             String itemRemark = (String) item.get("remark");
-            if (detailId == null) return AjaxResult.error("Borrow detail id is required");
-            if (returnQty <= 0) return AjaxResult.error("Return quantity must be greater than 0");
+            if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
+            if (returnQty <= 0) throw new BookBorrowException("Return quantity must be greater than 0");
 
             BookBorrowDetail beforeDetail = detailMapper.selectByIdForUpdate(detailId);
             if (beforeDetail == null || !order.getId().equals(beforeDetail.getBorrowOrderId())) {
-                return AjaxResult.error("Borrow detail not found: " + detailId);
+                throw new BookBorrowException("Borrow detail not found: " + detailId);
             }
             if (returnQty > remainingQty(beforeDetail)) {
-                return AjaxResult.error("Return quantity exceeds remaining quantity: " + beforeDetail.getBookName());
+                throw new BookBorrowException("Return quantity exceeds remaining quantity: " + beforeDetail.getBookName());
             }
 
             BookInfo beforeBook = null;
@@ -182,7 +215,9 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             BookBorrowDetail savedDetail = detailMapper.selectById(detailId);
 
             if (beforeDetail.getBookId() != null) {
-                bookInfoMapper.increaseLendableQty(beforeDetail.getBookId(), returnQty);
+                if (bookInfoMapper.increaseLendableQty(beforeDetail.getBookId(), returnQty) != 1) {
+                    throw new BookBorrowException("Failed to restore lendable stock: " + beforeDetail.getBookName());
+                }
                 BookInfo afterBook = bookInfoMapper.selectById(beforeDetail.getBookId());
                 writeBookHistory(beforeDetail.getBookId(), 2, beforeBook, afterBook, "lendable_qty",
                         "RETURN_INCREASE_LENDABLE", returnOrderNo, 2, staffId, staffName);
@@ -219,7 +254,32 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     @Transactional(rollbackFor = Exception.class)
     public AjaxResult borrowToPurchase(List<Map<String, Object>> purchaseItems,
                                        String staffId, String staffName, Long deptId) {
-        if (purchaseItems == null || purchaseItems.isEmpty()) return AjaxResult.error("Purchase items are required");
+        if (purchaseItems == null || purchaseItems.isEmpty()) throw new BookBorrowException("Purchase items are required");
+
+        Set<Long> purchaseDetailIds = new HashSet<>();
+        for (Map<String, Object> item : purchaseItems) {
+            Long detailId = toLong(item.get("borrowDetailId"));
+            int purchaseQty = toInt(item.get("purchaseQty"), 0);
+            if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
+            if (purchaseQty <= 0) throw new BookBorrowException("Purchase quantity must be greater than 0");
+            if (!purchaseDetailIds.add(detailId)) throw new BookBorrowException("Duplicate borrow detail: " + detailId);
+
+            BookBorrowDetail detail = detailMapper.selectByIdForUpdate(detailId);
+            if (detail == null) throw new BookBorrowException("Borrow detail not found: " + detailId);
+            if (orderMapper.selectByOrderNo(detail.getBorrowOrderNo()) == null) {
+                throw new BookBorrowException("Borrow order not found: " + detail.getBorrowOrderNo());
+            }
+            if (purchaseQty > remainingQty(detail)) {
+                throw new BookBorrowException("Purchase quantity exceeds remaining quantity: " + detail.getBookName());
+            }
+            if (detail.getBookId() != null) {
+                BookInfo book = bookInfoMapper.selectByIdForUpdate(detail.getBookId());
+                if (book == null) throw new BookBorrowException("Book not found: " + detail.getBookId());
+                if (safeInt(book.getStockQty()) < purchaseQty) {
+                    throw new BookBorrowException("Not enough stock for purchase conversion: " + detail.getBookName());
+                }
+            }
+        }
 
         String traceId = newTraceId();
         List<String> purchaseOrderNos = new ArrayList<>();
@@ -230,21 +290,21 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         for (Map<String, Object> item : purchaseItems) {
             Long detailId = toLong(item.get("borrowDetailId"));
             int purchaseQty = toInt(item.get("purchaseQty"), 0);
-            if (detailId == null) return AjaxResult.error("Borrow detail id is required");
-            if (purchaseQty <= 0) return AjaxResult.error("Purchase quantity must be greater than 0");
+            if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
+            if (purchaseQty <= 0) throw new BookBorrowException("Purchase quantity must be greater than 0");
 
             BookBorrowDetail beforeDetail = detailMapper.selectByIdForUpdate(detailId);
-            if (beforeDetail == null) return AjaxResult.error("Borrow detail not found: " + detailId);
+            if (beforeDetail == null) throw new BookBorrowException("Borrow detail not found: " + detailId);
             BookBorrowOrder order = orderMapper.selectByOrderNo(beforeDetail.getBorrowOrderNo());
-            if (order == null) return AjaxResult.error("Borrow order not found: " + beforeDetail.getBorrowOrderNo());
+            if (order == null) throw new BookBorrowException("Borrow order not found: " + beforeDetail.getBorrowOrderNo());
             if (purchaseQty > remainingQty(beforeDetail)) {
-                return AjaxResult.error("Purchase quantity exceeds remaining quantity: " + beforeDetail.getBookName());
+                throw new BookBorrowException("Purchase quantity exceeds remaining quantity: " + beforeDetail.getBookName());
             }
 
             BookInfo beforeBook = null;
             if (beforeDetail.getBookId() != null) {
                 beforeBook = bookInfoMapper.selectByIdForUpdate(beforeDetail.getBookId());
-                if (beforeBook == null) return AjaxResult.error("Book not found: " + beforeDetail.getBookId());
+                if (beforeBook == null) throw new BookBorrowException("Book not found: " + beforeDetail.getBookId());
             }
 
             BigDecimal unitPrice = toBigDecimal(item.get("unitPrice"));
@@ -296,7 +356,7 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
 
             if (beforeDetail.getBookId() != null) {
                 if (bookInfoMapper.decreaseStockQty(beforeDetail.getBookId(), purchaseQty) != 1) {
-                    return AjaxResult.error("Not enough stock for purchase conversion: " + beforeDetail.getBookName());
+                    throw new BookBorrowException("Not enough stock for purchase conversion: " + beforeDetail.getBookName());
                 }
                 BookInfo afterBook = bookInfoMapper.selectById(beforeDetail.getBookId());
                 writeBookHistory(beforeDetail.getBookId(), 2, beforeBook, afterBook, "stock_qty",
@@ -368,6 +428,27 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     @Override
     public BookBorrowDetail selectDetailById(Long detailId) {
         return detailMapper.selectById(detailId);
+    }
+
+    @Override
+    public List<Map<String, Object>> selectBorrowDetailPage(String phone, Integer status, Integer memberId,
+                                                            boolean borrowingOnly, int offset, int limit) {
+        return detailMapper.selectPage(phone, status, memberId, borrowingOnly, offset, limit);
+    }
+
+    @Override
+    public long countBorrowDetailPage(String phone, Integer status, Integer memberId, boolean borrowingOnly) {
+        return detailMapper.countPage(phone, status, memberId, borrowingOnly);
+    }
+
+    @Override
+    public int countBorrowOrdersByMemberId(Integer memberId) {
+        return orderMapper.countByMemberId(memberId);
+    }
+
+    @Override
+    public int sumRemainingByMemberId(Integer memberId) {
+        return detailMapper.sumRemainingByMemberId(memberId);
     }
 
     @Override
