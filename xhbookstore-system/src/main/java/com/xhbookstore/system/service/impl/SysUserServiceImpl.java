@@ -14,6 +14,7 @@ import org.springframework.util.CollectionUtils;
 import com.xhbookstore.common.annotation.DataScope;
 import com.xhbookstore.common.constant.UserConstants;
 import com.xhbookstore.common.core.domain.entity.SysRole;
+import com.xhbookstore.common.core.domain.entity.SysDept;
 import com.xhbookstore.common.core.domain.entity.SysUser;
 import com.xhbookstore.common.exception.ServiceException;
 import com.xhbookstore.common.utils.SecurityUtils;
@@ -507,12 +508,14 @@ public class SysUserServiceImpl implements ISysUserService
         int failureNum = 0;
         StringBuilder successMsg = new StringBuilder();
         StringBuilder failureMsg = new StringBuilder();
+        List<SysDept> allDepts = deptService.selectDeptList(new SysDept());
         for (SysUser user : userList)
         {
             try
             {
                 // 验证是否存在这个用户
                 SysUser u = userMapper.selectUserByUserName(user.getUserName());
+                user.setDeptId(resolveImportDeptId(user, u, allDepts));
                 if (StringUtils.isNull(u))
                 {
                     BeanValidators.validateWithException(validator, user);
@@ -531,7 +534,6 @@ public class SysUserServiceImpl implements ISysUserService
                     checkUserDataScope(u.getUserId());
                     deptService.checkDeptDataScope(user.getDeptId());
                     user.setUserId(u.getUserId());
-                    user.setDeptId(u.getDeptId());
                     user.setUpdateBy(operName);
                     userMapper.updateUser(user);
                     successNum++;
@@ -561,5 +563,74 @@ public class SysUserServiceImpl implements ISysUserService
             successMsg.insert(0, "恭喜您，数据已全部导入成功！共 " + successNum + " 条，数据如下：");
         }
         return successMsg.toString();
+    }
+
+    private Long resolveImportDeptId(SysUser user, SysUser existing, List<SysDept> allDepts)
+    {
+        if (user.getDeptId() != null)
+        {
+            SysDept dept = deptService.selectDeptById(user.getDeptId());
+            if (dept == null)
+            {
+                throw new ServiceException("部门编号 " + user.getDeptId() + " 不存在");
+            }
+            if (!"0".equals(dept.getStatus()))
+            {
+                throw new ServiceException("部门 " + dept.getDeptName() + " 已停用");
+            }
+            return dept.getDeptId();
+        }
+
+        String deptPath = StringUtils.trim(user.getImportDeptName());
+        if (StringUtils.isEmpty(deptPath))
+        {
+            if (existing != null && existing.getDeptId() != null)
+            {
+                return existing.getDeptId();
+            }
+            throw new ServiceException("部门编号和部门名称不能同时为空");
+        }
+
+        String normalized = deptPath.replace('＞', '>').replace('\\', '/').replace('>', '/');
+        String[] rawParts = normalized.split("/");
+        List<String> parts = new ArrayList<>();
+        for (String rawPart : rawParts)
+        {
+            String part = StringUtils.trim(rawPart);
+            if (StringUtils.isNotEmpty(part))
+            {
+                parts.add(part);
+            }
+        }
+        if (parts.isEmpty())
+        {
+            throw new ServiceException("部门名称不能为空");
+        }
+
+        List<SysDept> candidates = allDepts.stream()
+                .filter(dept -> parts.get(0).equals(StringUtils.trim(dept.getDeptName())))
+                .collect(Collectors.toList());
+        for (int i = 1; i < parts.size(); i++)
+        {
+            String childName = parts.get(i);
+            List<Long> parentIds = candidates.stream().map(SysDept::getDeptId).collect(Collectors.toList());
+            candidates = allDepts.stream()
+                    .filter(dept -> parentIds.contains(dept.getParentId()))
+                    .filter(dept -> childName.equals(StringUtils.trim(dept.getDeptName())))
+                    .collect(Collectors.toList());
+        }
+        candidates = candidates.stream()
+                .filter(dept -> "0".equals(dept.getStatus()))
+                .collect(Collectors.toList());
+
+        if (candidates.isEmpty())
+        {
+            throw new ServiceException("未找到启用部门：" + deptPath);
+        }
+        if (candidates.size() > 1)
+        {
+            throw new ServiceException("部门名称存在重复，请填写完整层级路径，例如：一级部门/二级部门（当前填写：" + deptPath + "）");
+        }
+        return candidates.get(0).getDeptId();
     }
 }

@@ -9,7 +9,7 @@
     </el-row>
 
     <el-table v-loading="loading" :data="list" border>
-      <el-table-column label="序号" type="index" width="55" align="center"/>
+      <el-table-column label="ID" prop="id" width="70" align="center"/>
       <el-table-column label="名称" prop="typeName" width="120"/>
       <el-table-column label="售价" prop="price" width="80" align="center">
         <template slot-scope="scope">{{ scope.row.price ? '¥' + scope.row.price : '免费' }}</template>
@@ -125,7 +125,10 @@ export default {
   methods: {
     getList() {
       this.loading = true;
-      listCardType().then(res => { this.list = res.rows; this.loading = false; });
+      listCardType().then(res => {
+        this.list = (res.rows || []).slice().sort((a, b) => Number(b.id) - Number(a.id));
+        this.loading = false;
+      });
     },
     reset() { this.form = { isRenewal: 0, status: 0, price: 0, validDays: 0, borrowLimit: 0, discount: 1.00, sort: 0 }; },
     handleAdd() { this.reset(); this.open = true; this.title = "新增卡类型"; },

@@ -382,8 +382,7 @@
 </template>
 
 <script>
-import { listMember, getMember, addMember, updateMember, delMember, listCardTypes, listPoints, addPoints, getMemberCards, refundMemberCard, importMember } from '@/api/member/member'
-import { listDept } from '@/api/system/dept'
+import { listMember, getMember, addMember, updateMember, delMember, listCardTypes, listMemberDepts, listPoints, addPoints, getMemberCards, refundMemberCard, importMember } from '@/api/member/member'
 
 export default {
   name: 'MemberList',
@@ -486,7 +485,7 @@ export default {
       return (this.queryParams.pageNum - 1) * this.queryParams.pageSize + index + 1
     },
     getDeptOptions() {
-      listDept().then(r => { this.deptOptions = r.data || [] })
+      listMemberDepts().then(r => { this.deptOptions = r.data || [] })
     },
     handleQuery() {
       this.queryParams.pageNum = 1

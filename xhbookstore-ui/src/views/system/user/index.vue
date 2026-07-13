@@ -51,7 +51,7 @@
               <a class="link-type" style="cursor:pointer" @click="handleViewData(scope.row)">{{ scope.row.userName }}</a>
             </template>
           </el-table-column>
-          <el-table-column label="用户昵称" align="center" key="nickName" prop="nickName" v-if="columns.nickName.visible" :show-overflow-tooltip="true" />
+          <el-table-column label="用户姓名" align="center" key="nickName" prop="nickName" v-if="columns.nickName.visible" :show-overflow-tooltip="true" />
           <el-table-column label="部门" align="center" key="deptName" prop="dept.deptName" v-if="columns.deptName.visible" :show-overflow-tooltip="true" />
           <el-table-column label="岗位" align="center" key="postGroup" prop="postGroup" v-if="columns.postGroup.visible" :show-overflow-tooltip="true" />
           <el-table-column label="角色" align="center" key="roleGroup" prop="roleGroup" v-if="columns.roleGroup.visible" :show-overflow-tooltip="true" />
@@ -89,8 +89,8 @@
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-row>
           <el-col :span="12">
-            <el-form-item label="用户昵称" prop="nickName">
-              <el-input v-model="form.nickName" placeholder="请输入用户昵称" maxlength="30" />
+            <el-form-item label="用户姓名" prop="nickName">
+              <el-input v-model="form.nickName" placeholder="请输入用户姓名" maxlength="30" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -232,7 +232,7 @@ export default {
       columns: {
         userId: { label: 'ID', visible: true },
         userName: { label: '登录账号', visible: true },
-        nickName: { label: '用户昵称', visible: true },
+        nickName: { label: '用户姓名', visible: true },
         deptName: { label: '部门', visible: true },
         postGroup: { label: '岗位', visible: true },
         roleGroup: { label: '角色', visible: true },
@@ -247,7 +247,7 @@ export default {
           { min: 2, max: 20, message: '登录账号长度必须介于 2 和 20 之间', trigger: 'blur' }
         ],
         nickName: [
-          { required: true, message: "用户昵称不能为空", trigger: "blur" }
+          { required: true, message: "用户姓名不能为空", trigger: "blur" }
         ],
         phonenumber: [
           {

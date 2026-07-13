@@ -81,6 +81,6 @@
             <if test="endCreatedAt != null and endCreatedAt != ''">and o.created_at &lt;= #{endCreatedAt}</if>
             ${params.dataScope}
         </where>
-        order by o.pay_time desc, o.created_at desc, o.id desc
+        order by o.id desc
     </select>
 </mapper>

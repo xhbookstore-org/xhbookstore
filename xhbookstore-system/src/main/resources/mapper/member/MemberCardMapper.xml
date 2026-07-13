@@ -117,9 +117,7 @@
             </if>
             ${params.dataScope}
         </where>
-        order by field(c.status, 1, 0, 3, 2),
-                 coalesce(c.paid_at, c.effective_at, c.created_at) desc,
-                 c.id desc
+        order by c.id desc
     </select>
 
     <select id="selectExportList" parameterType="com.xhbookstore.system.domain.member.MemberCard" resultType="com.xhbookstore.system.domain.member.MemberCardExport">
@@ -187,9 +185,7 @@
             </if>
             ${params.dataScope}
         </where>
-        order by field(c.status, 1, 0, 3, 2),
-                 coalesce(c.paid_at, c.effective_at, c.created_at) desc,
-                 c.id desc
+        order by c.id desc
     </select>
 
     <update id="activate">

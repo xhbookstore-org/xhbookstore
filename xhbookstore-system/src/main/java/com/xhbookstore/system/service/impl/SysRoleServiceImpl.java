@@ -3,6 +3,7 @@ package com.xhbookstore.system.service.impl;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.xhbookstore.common.annotation.DataScope;
 import com.xhbookstore.common.constant.UserConstants;
 import com.xhbookstore.common.core.domain.entity.SysRole;
+import com.xhbookstore.common.core.domain.entity.SysMenu;
 import com.xhbookstore.common.exception.ServiceException;
 import com.xhbookstore.common.utils.SecurityUtils;
 import com.xhbookstore.common.utils.StringUtils;
@@ -19,6 +21,7 @@ import com.xhbookstore.system.domain.SysRoleDept;
 import com.xhbookstore.system.domain.SysRoleMenu;
 import com.xhbookstore.system.domain.SysUserRole;
 import com.xhbookstore.system.mapper.SysRoleDeptMapper;
+import com.xhbookstore.system.mapper.SysMenuMapper;
 import com.xhbookstore.system.mapper.SysRoleMapper;
 import com.xhbookstore.system.mapper.SysRoleMenuMapper;
 import com.xhbookstore.system.mapper.SysUserRoleMapper;
@@ -43,6 +46,9 @@ public class SysRoleServiceImpl implements ISysRoleService
 
     @Autowired
     private SysRoleDeptMapper roleDeptMapper;
+
+    @Autowired
+    private SysMenuMapper menuMapper;
 
     /**
      * 根据条件分页查询角色数据
@@ -299,9 +305,16 @@ public class SysRoleServiceImpl implements ISysRoleService
     public int insertRoleMenu(SysRole role)
     {
         int rows = 1;
-        // 新增用户与角色管理
+        Set<Long> menuIds = new LinkedHashSet<>();
+        if (role.getMenuIds() != null)
+        {
+            for (Long menuId : role.getMenuIds())
+            {
+                addMenuWithAncestors(menuId, menuIds);
+            }
+        }
         List<SysRoleMenu> list = new ArrayList<SysRoleMenu>();
-        for (Long menuId : role.getMenuIds())
+        for (Long menuId : menuIds)
         {
             SysRoleMenu rm = new SysRoleMenu();
             rm.setRoleId(role.getRoleId());
@@ -313,6 +326,19 @@ public class SysRoleServiceImpl implements ISysRoleService
             rows = roleMenuMapper.batchRoleMenu(list);
         }
         return rows;
+    }
+
+    private void addMenuWithAncestors(Long menuId, Set<Long> menuIds)
+    {
+        if (menuId == null || menuId == 0 || !menuIds.add(menuId))
+        {
+            return;
+        }
+        SysMenu menu = menuMapper.selectMenuById(menuId);
+        if (menu != null && menu.getParentId() != null && menu.getParentId() != 0)
+        {
+            addMenuWithAncestors(menu.getParentId(), menuIds);
+        }
     }
 
     /**

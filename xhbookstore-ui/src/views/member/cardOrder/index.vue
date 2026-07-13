@@ -92,8 +92,7 @@
 </template>
 
 <script>
-import { listCardTypes, listMemberCardOrders } from '@/api/member/member'
-import { listDept } from '@/api/system/dept'
+import { listCardTypes, listMemberDepts, listMemberCardOrders } from '@/api/member/member'
 
 export default {
   name: 'MemberCardOrder',
@@ -123,7 +122,7 @@ export default {
   created() {
     this.getList()
     listCardTypes().then(r => { this.cardTypes = r.data || [] })
-    listDept().then(r => { this.deptOptions = r.data || [] })
+    listMemberDepts().then(r => { this.deptOptions = r.data || [] })
   },
   methods: {
     getList() {

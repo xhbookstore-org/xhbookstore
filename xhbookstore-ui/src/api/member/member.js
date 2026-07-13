@@ -35,6 +35,10 @@ export function listCardTypes() {
   return request({ url: '/member/cardTypes', method: 'get' })
 }
 
+export function listMemberDepts() {
+  return request({ url: '/member/depts', method: 'get' })
+}
+
 // Points records
 export function listPoints(memberId) {
   return request({ url: '/member/' + memberId + '/points', method: 'get' })

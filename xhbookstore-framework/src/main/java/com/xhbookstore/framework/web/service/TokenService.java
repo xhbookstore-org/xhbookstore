@@ -236,7 +236,8 @@ public class TokenService
     }
 
     /**
-     * 角色权限变更后，刷新所有持有该角色的在线用户权限
+     * 角色权限变更后，使持有该角色的在线会话失效。
+     * 前端路由和按钮权限在登录时加载，仅刷新 Redis 中的权限无法更新浏览器内存状态。
      *
      * @param roleId            变更的角色ID
      * @param permissionService 权限服务
@@ -265,11 +266,8 @@ public class TokenService
             {
                 continue;
             }
-            // 刷新权限缓存
-            loginUser.setUser(userService.selectUserById(loginUser.getUserId()));
-            loginUser.setPermissions(permissionService.getMenuPermission(loginUser.getUser()));
-            refreshToken(loginUser);
-            log.info("角色[{}]权限变更，已刷新在线用户[{}]的权限缓存", roleId, loginUser.getUsername());
+            redisCache.deleteObject(key);
+            log.info("角色[{}]权限变更，已注销在线用户[{}]，重新登录后加载最新权限", roleId, loginUser.getUsername());
         }
     }
 }

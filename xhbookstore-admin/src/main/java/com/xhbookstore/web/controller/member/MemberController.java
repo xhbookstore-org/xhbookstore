@@ -9,6 +9,7 @@ import com.xhbookstore.common.annotation.Log;
 import com.xhbookstore.common.enums.BusinessType;
 import com.xhbookstore.common.core.controller.BaseController;
 import com.xhbookstore.common.core.domain.AjaxResult;
+import com.xhbookstore.common.core.domain.entity.SysDept;
 import com.xhbookstore.common.core.page.TableDataInfo;
 import com.xhbookstore.common.utils.poi.ExcelUtil;
 import com.xhbookstore.system.domain.member.CardType;
@@ -19,6 +20,7 @@ import com.xhbookstore.system.domain.member.PointsOrder;
 import com.xhbookstore.system.mapper.member.CardTypeMapper;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
+import com.xhbookstore.system.service.ISysDeptService;
 
 @RestController
 @RequestMapping("/member")
@@ -27,6 +29,7 @@ public class MemberController extends BaseController {
     @Autowired private IMemberService memberService;
     @Autowired private CardTypeMapper cardTypeMapper;
     @Autowired private IPointsService pointsService;
+    @Autowired private ISysDeptService deptService;
 
     @PreAuthorize("@ss.hasPermi('member:member:list')")
     @GetMapping("/list")
@@ -85,12 +88,20 @@ public class MemberController extends BaseController {
         return AjaxResult.success("ok", cardNo);
     }
 
-    @PreAuthorize("@ss.hasPermi('member:member:query')")
+    @PreAuthorize("@ss.hasAnyPermi('member:member:list,member:card:list,member:cardOrder:list,member:cardRefund:list')")
     @GetMapping("/cardTypes")
     public AjaxResult cardTypes() {
         // 数据源改为 util_card_type（筛选 is_del=0）
         List<CardType> list = cardTypeMapper.selectAll();
         return AjaxResult.success(list);
+    }
+
+    @PreAuthorize("@ss.hasAnyPermi('member:member:list,member:card:list,member:cardOrder:list,member:cardRefund:list')")
+    @GetMapping("/depts")
+    public AjaxResult memberDepts() {
+        SysDept query = new SysDept();
+        query.setStatus("0");
+        return AjaxResult.success(deptService.selectDeptList(query));
     }
 
     @PreAuthorize("@ss.hasPermi('member:member:query')")

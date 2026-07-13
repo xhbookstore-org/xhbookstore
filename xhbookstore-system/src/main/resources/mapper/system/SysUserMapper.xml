@@ -93,6 +93,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 		</if>
 		${params.dataScope}
 		group by u.user_id
+		order by u.user_id desc
 	</select>
 
 	<select id="selectAllocatedList" parameterType="SysUser" resultMap="SysUserResult">
@@ -109,6 +110,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			AND u.phonenumber like concat('%', #{phonenumber}, '%')
 		</if>
 		${params.dataScope}
+		order by u.user_id desc
 	</select>
 
 	<select id="selectUnallocatedList" parameterType="SysUser" resultMap="SysUserResult">
@@ -126,6 +128,7 @@ PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
 			AND u.phonenumber like concat('%', #{phonenumber}, '%')
 		</if>
 		${params.dataScope}
+		order by u.user_id desc
 	</select>
 
 	<select id="selectUserByUserName" parameterType="String" resultMap="SysUserResult">

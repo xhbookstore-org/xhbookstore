@@ -29,8 +29,12 @@ public class SysUser extends BaseEntity
     private Long userId;
 
     /** 部门ID */
-    @Excel(name = "部门编号", type = Type.IMPORT)
+    @Excel(name = "部门编号", type = Type.IMPORT, prompt = "部门ID；与部门名称任选其一")
     private Long deptId;
+
+    /** 导入时填写的部门名称或部门层级路径 */
+    @Excel(name = "部门名称", type = Type.IMPORT, prompt = "如有重名，请填写：一级部门/二级部门")
+    private String importDeptName;
 
     /** 用户账号 */
     @Excel(name = "登录名称")
@@ -135,6 +139,16 @@ public class SysUser extends BaseEntity
     public void setDeptId(Long deptId)
     {
         this.deptId = deptId;
+    }
+
+    public String getImportDeptName()
+    {
+        return importDeptName;
+    }
+
+    public void setImportDeptName(String importDeptName)
+    {
+        this.importDeptName = importDeptName;
     }
 
     @Xss(message = "用户昵称不能包含脚本字符")

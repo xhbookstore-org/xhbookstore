@@ -51,7 +51,7 @@
             </if>
             ${params.dataScope}
         </where>
-        order by coalesce(m.updated_at, m.created_at) desc, m.created_at desc, m.id desc
+        order by m.id desc
     </select>
 
     <select id="selectMemberListForExport" parameterType="com.xhbookstore.system.domain.member.Member" resultMap="MemberResult">
@@ -70,7 +70,7 @@
             </if>
             ${params.dataScope}
         </where>
-        order by coalesce(m.updated_at, m.created_at) desc, m.created_at desc, m.id desc
+        order by m.id desc
     </select>
 
     <select id="selectMemberExportList" parameterType="com.xhbookstore.system.domain.member.Member" resultType="com.xhbookstore.system.domain.member.MemberExport">
@@ -118,7 +118,7 @@
             </if>
             ${params.dataScope}
         </where>
-        order by coalesce(m.updated_at, m.created_at) desc, m.created_at desc, m.id desc
+        order by m.id desc
     </select>
 
     <select id="selectMemberById" parameterType="Integer" resultMap="MemberResult">
