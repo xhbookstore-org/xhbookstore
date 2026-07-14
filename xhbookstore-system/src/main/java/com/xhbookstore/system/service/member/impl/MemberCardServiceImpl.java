@@ -119,14 +119,14 @@ public class MemberCardServiceImpl implements IMemberCardService {
             Member remarkUpdate = new Member();
             remarkUpdate.setId(member.getId());
             remarkUpdate.setRemark(remark.trim());
-            remarkUpdate.setLastOperator(staffId);
+            remarkUpdate.setLastOperator(staffName);
             memberMapper.updateMember(remarkUpdate);
         }
 
         order.setMemberCardId(card.getId());
         orderMapper.bindMemberCard(order);
         if (activateNow) {
-            syncMemberCurrentCard(member.getId(), card, staffId);
+            syncMemberCurrentCard(member.getId(), card, staffName);
         }
         writeLog(card, "BUY_CARD", null, card, "sale_order,member_card",
                 "Buy member card", staffId, staffName, "STAFF_MP", null);
@@ -191,6 +191,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
         refund.setRemark(remark);
         refundOrderMapper.insert(refund);
         memberCardMapper.refund(card.getId(), refundOrderNo);
+        orderMapper.updateOrderStatusByMemberCardId(card.getId(), 2);
 
         MemberCard after = memberCardMapper.selectById(card.getId());
         writeLog(after, "REFUND_CARD", before, after, "status,refund_order_no,refunded_at",
@@ -216,7 +217,9 @@ public class MemberCardServiceImpl implements IMemberCardService {
         MemberCard active = memberCardMapper.selectActiveByMemberIdForUpdate(memberId);
         Date nextStart = now;
         if (active != null && active.getExpiredAt() != null && active.getExpiredAt().after(now)) {
-            syncMemberCurrentCard(memberId, active, operatorId);
+            if (!sameCurrentCard(member, active)) {
+                syncMemberCurrentCard(memberId, active, operatorName);
+            }
             rebuildPendingSchedule(memberId, operatorId, operatorName, device);
             return memberCardMapper.selectByMemberId(memberId);
         }
@@ -246,7 +249,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
                     "Activate next pending card", operatorId, operatorName, device, null);
 
             if (expiredAt.after(now)) {
-                syncMemberCurrentCard(memberId, after, operatorId);
+                syncMemberCurrentCard(memberId, after, operatorName);
                 hasActiveCard = true;
                 break;
             }
@@ -259,7 +262,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
                     "Activated card already expired during refresh", operatorId, operatorName, device, null);
         }
         if (!hasActiveCard) {
-            memberMapper.updateCurrentCard(memberId, null, null, 0, operatorId);
+            memberMapper.updateCurrentCard(memberId, null, null, 0, operatorName);
         }
         rebuildPendingSchedule(memberId, operatorId, operatorName, device);
         return memberCardMapper.selectByMemberId(memberId);
@@ -283,8 +286,8 @@ public class MemberCardServiceImpl implements IMemberCardService {
         return data;
     }
 
-    private void syncMemberCurrentCard(Integer memberId, MemberCard card, String operatorId) {
-        memberMapper.updateCurrentCard(memberId, card.getCardTypeId(), card.getExpiredAt(), 0, operatorId);
+    private void syncMemberCurrentCard(Integer memberId, MemberCard card, String operatorName) {
+        memberMapper.updateCurrentCard(memberId, card.getCardTypeId(), card.getExpiredAt(), 0, operatorName);
     }
 
     private void writeLog(MemberCard card, String logType, Object beforeData, Object afterData, String fields,
@@ -384,6 +387,12 @@ public class MemberCardServiceImpl implements IMemberCardService {
         if (left == null && right == null) return true;
         if (left == null || right == null) return false;
         return left.getTime() == right.getTime();
+    }
+
+    private boolean sameCurrentCard(Member member, MemberCard card) {
+        return java.util.Objects.equals(member.getCardTypeId(), card.getCardTypeId())
+                && sameTime(member.getValidDate(), card.getExpiredAt())
+                && (member.getStatus() == null || member.getStatus() == 0);
     }
 
     private Long millis(Date date) {

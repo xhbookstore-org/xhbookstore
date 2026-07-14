@@ -79,6 +79,7 @@ public class StaffController {
     @SuppressWarnings("unchecked")
     @PostMapping("/members/{memberId}/activate-card")
     public ApiResponse<Map<String,Object>> activateCard(@PathVariable String memberId,@RequestBody Map<String,Object> body,HttpServletRequest request){
+        SysUser staff=currentStaff(request);
         String memberCodeToken = stringValue(body.get("memberCodeToken"));
         if(memberCodeToken==null||memberCodeToken.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"memberCodeToken is required");
         Member tokenMember;
@@ -92,24 +93,25 @@ public class StaffController {
             Member update=new Member();
             update.setId(tokenMember.getId());
             update.setName(requestMemberName);
-            update.setLastOperator(getStaffId(request));
+            update.setLastOperator(staffName(staff));
             memberMapper.updateMember(update);
         }
         AjaxResult result=memberCardService.buyCard(tokenMember.getId(),cardTypeId,toBigDecimal(body.get("paidAmount")),
-                stringValue(body.get("paymentType")),getStaffId(request),"staff",null,requestRemark(body));
+                stringValue(body.get("paymentType")),String.valueOf(staff.getUserId()),staffName(staff),staff.getDeptId(),requestRemark(body));
         if(result.isError()) throw new ApiException(ApiErrorCode.PARAM_INVALID,String.valueOf(result.get("msg")));
         return ApiResponse.success((Map<String,Object>)result.get("data"));
     }
 
     @Operation(summary = "Scan member code")
     @PostMapping("/member-code/scan")
-    public ApiResponse<Map<String,Object>> scanMemberCode(@RequestBody Map<String,String> body){
+    public ApiResponse<Map<String,Object>> scanMemberCode(@RequestBody Map<String,String> body,HttpServletRequest request){
+        SysUser staff=currentStaff(request);
         String token=body.get("memberCodeToken"); if(token==null||token.isEmpty()) token=body.get("scanResult");
         if(token==null||token.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"memberCodeToken is required");
         Member member;
         try { member=memberCodeTokenService.verifyToken(token,"BUY_CARD"); }
         catch (IllegalArgumentException e) { throw new ApiException(ApiErrorCode.PARAM_INVALID,e.getMessage()); }
-        memberCardService.refreshMemberCardStatus(member.getId(),"system","staff","STAFF_MP_SCAN");
+        memberCardService.refreshMemberCardStatus(member.getId(),String.valueOf(staff.getUserId()),staffName(staff),"STAFF_MP_SCAN");
         Map<String,Object> data=new HashMap<>();
         data.put("memberId",String.valueOf(member.getId()));
         data.put("memberNo",member.getCardNo());
@@ -123,6 +125,7 @@ public class StaffController {
     @Operation(summary = "Buy member card by member code token")
     @PostMapping("/member-cards/buy")
     public ApiResponse<Map<String,Object>> buyMemberCard(@RequestBody Map<String,Object> body,HttpServletRequest request){
+        SysUser staff=currentStaff(request);
         String memberCodeToken=stringValue(body.get("memberCodeToken"));
         if(memberCodeToken==null||memberCodeToken.isEmpty()) memberCodeToken=stringValue(body.get("scanResult"));
         Integer cardTypeId=body.get("cardTypeId")!=null?Integer.valueOf(body.get("cardTypeId").toString()):null;
@@ -130,7 +133,7 @@ public class StaffController {
         AjaxResult result;
         try {
             result=memberCardService.buyCardByToken(memberCodeToken,cardTypeId,paidAmount,
-                    stringValue(body.get("paymentType")),getStaffId(request),"staff",null,requestRemark(body));
+                    stringValue(body.get("paymentType")),String.valueOf(staff.getUserId()),staffName(staff),staff.getDeptId(),requestRemark(body));
         } catch (IllegalArgumentException e) {
             throw new ApiException(ApiErrorCode.PARAM_INVALID,e.getMessage());
         }
@@ -182,6 +185,7 @@ public class StaffController {
     @Operation(summary = "Return books")
     @PostMapping("/borrow-returns")
     public ApiResponse<Map<String,Object>> returnBooks(@RequestBody Map<String,Object> body,HttpServletRequest request){
+        SysUser staff=currentStaff(request);
         List<Map<String,Object>> returnItems=new ArrayList<>(); Object obj=body.get("returnItems");
         if(obj instanceof List<?>){ for(Object row:(List<?>)obj){ if(row instanceof Map<?,?>){ Map<?,?> raw=(Map<?,?>)row; Map<String,Object> item=new HashMap<>(); item.put("borrowDetailId",raw.get("borrowDetailId")); item.put("returnQty",raw.get("returnQty")); item.put("returnType",raw.get("returnType")!=null?raw.get("returnType"):1); item.put("remark",raw.get("remark")); returnItems.add(item); } } }
         else { List<Object> ids=(List<Object>)body.get("borrowDetailIds"); if(ids!=null) for(Object idObj:ids){ Long detailId=Long.valueOf(idObj.toString()); BookBorrowDetail detail=bookBorrowService.selectDetailById(detailId); if(detail==null) throw new ApiException(ApiErrorCode.NOT_FOUND,"Borrow detail not found: "+detailId); Map<String,Object> item=new HashMap<>(); item.put("borrowDetailId",detailId); item.put("returnQty",remainingQty(detail)); item.put("returnType",1); returnItems.add(item); } }
@@ -189,14 +193,14 @@ public class StaffController {
         Map<String,List<Map<String,Object>>> byOrder=new LinkedHashMap<>();
         for(Map<String,Object> item:returnItems){ Long detailId=Long.valueOf(item.get("borrowDetailId").toString()); BookBorrowDetail detail=bookBorrowService.selectDetailById(detailId); if(detail==null) throw new ApiException(ApiErrorCode.NOT_FOUND,"Borrow detail not found: "+detailId); int qty=parseInt(item.get("returnQty"),0); if(qty<=0||qty>remainingQty(detail)) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,"Invalid return quantity"); item.put("borrowDetailId",detailId); item.put("returnQty",qty); item.put("returnType",parseInt(item.get("returnType"),1)); byOrder.computeIfAbsent(detail.getBorrowOrderNo(),k->new ArrayList<>()).add(item); }
         List<String> returnOrderNos=new ArrayList<>(); int totalReturned=0; String traceId=null;
-        for(Map.Entry<String,List<Map<String,Object>>> e:byOrder.entrySet()){ AjaxResult result=bookBorrowService.returnBook(e.getKey(),e.getValue(),getStaffId(request),"staff",null); if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,(String)result.get("msg")); Map<String,Object> rd=(Map<String,Object>)result.get("data"); if(rd!=null){ Object nos=rd.get("returnOrderNos"); if(nos instanceof Collection<?>) for(Object no:(Collection<?>)nos) returnOrderNos.add(String.valueOf(no)); if(rd.get("totalReturned")!=null) totalReturned+=Integer.parseInt(rd.get("totalReturned").toString()); if(rd.get("traceId")!=null) traceId=rd.get("traceId").toString(); } }
+        for(Map.Entry<String,List<Map<String,Object>>> e:byOrder.entrySet()){ AjaxResult result=bookBorrowService.returnBook(e.getKey(),e.getValue(),String.valueOf(staff.getUserId()),staffName(staff),staff.getDeptId()); if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,(String)result.get("msg")); Map<String,Object> rd=(Map<String,Object>)result.get("data"); if(rd!=null){ Object nos=rd.get("returnOrderNos"); if(nos instanceof Collection<?>) for(Object no:(Collection<?>)nos) returnOrderNos.add(String.valueOf(no)); if(rd.get("totalReturned")!=null) totalReturned+=Integer.parseInt(rd.get("totalReturned").toString()); if(rd.get("traceId")!=null) traceId=rd.get("traceId").toString(); } }
         Map<String,Object> data=new HashMap<>(); data.put("returnOrderNos",returnOrderNos); data.put("totalReturned",totalReturned); data.put("traceId",traceId); return ApiResponse.success(data);
     }
 
     @SuppressWarnings("unchecked")
     @Operation(summary = "Borrow to purchase")
     @PostMapping("/borrow-purchases")
-    public ApiResponse<Map<String,Object>> borrowPurchases(@RequestBody Map<String,Object> body,HttpServletRequest request){ List<Map<String,Object>> items=(List<Map<String,Object>>)body.get("items"); if(items==null||items.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Purchase items are required"); AjaxResult result=bookBorrowService.borrowToPurchase(items,getStaffId(request),"staff",null); if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,(String)result.get("msg")); return ApiResponse.success((Map<String,Object>)result.get("data")); }
+    public ApiResponse<Map<String,Object>> borrowPurchases(@RequestBody Map<String,Object> body,HttpServletRequest request){ List<Map<String,Object>> items=(List<Map<String,Object>>)body.get("items"); if(items==null||items.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Purchase items are required"); SysUser staff=currentStaff(request); AjaxResult result=bookBorrowService.borrowToPurchase(items,String.valueOf(staff.getUserId()),staffName(staff),staff.getDeptId()); if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,(String)result.get("msg")); return ApiResponse.success((Map<String,Object>)result.get("data")); }
 
     @Operation(summary = "Member borrow records")
     @GetMapping("/members/{memberId}/borrows")
@@ -205,7 +209,7 @@ public class StaffController {
     @SuppressWarnings("unchecked")
     @Operation(summary = "Create borrow order")
     @PostMapping("/members/{memberId}/borrows")
-    public ApiResponse<Map<String,Object>> borrow(@PathVariable String memberId,@RequestBody Map<String,Object> body,HttpServletRequest request){ List<Map<String,Object>> books=(List<Map<String,Object>>)body.get("books"); if(books==null||books.isEmpty()) throw new ApiException(ApiErrorCode.BORROW_BOOK_REQUIRED); List<String> imageUrls=null; Object imgs=body.get("imageUrls"); if(imgs instanceof List<?>) imageUrls=((List<?>)imgs).stream().map(Object::toString).collect(Collectors.toList()); AjaxResult result=bookBorrowService.createBorrowOrder(Integer.parseInt(memberId),books,(String)body.get("remark"),getStaffId(request),"staff",null,imageUrls); if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_DENIED,(String)result.get("msg")); return ApiResponse.success((Map<String,Object>)result.get("data")); }
+    public ApiResponse<Map<String,Object>> borrow(@PathVariable String memberId,@RequestBody Map<String,Object> body,HttpServletRequest request){ List<Map<String,Object>> books=(List<Map<String,Object>>)body.get("books"); if(books==null||books.isEmpty()) throw new ApiException(ApiErrorCode.BORROW_BOOK_REQUIRED); List<String> imageUrls=null; Object imgs=body.get("imageUrls"); if(imgs instanceof List<?>) imageUrls=((List<?>)imgs).stream().map(Object::toString).collect(Collectors.toList()); SysUser staff=currentStaff(request); AjaxResult result=bookBorrowService.createBorrowOrder(Integer.parseInt(memberId),books,(String)body.get("remark"),String.valueOf(staff.getUserId()),staffName(staff),staff.getDeptId(),imageUrls); if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_DENIED,(String)result.get("msg")); return ApiResponse.success((Map<String,Object>)result.get("data")); }
 
     @Operation(summary = "Point reasons")
     @GetMapping("/points-reasons")
@@ -234,6 +238,7 @@ public class StaffController {
     private SysUser currentStaff(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); if(attr==null) throw new ApiException(ApiErrorCode.FORBIDDEN,"No staff permission"); SysUser staff=sysUserMapper.selectUserById(Long.valueOf(attr.toString())); if(staff==null) throw new ApiException(ApiErrorCode.FORBIDDEN,"Staff not found"); return staff; }
     private List<Long> visibleDeptIds(HttpServletRequest request){ SysUser staff=currentStaff(request); if(staff.isAdmin()) return null; List<Long> ids=new ArrayList<>(); if(staff.getDeptId()!=null){ ids.add(staff.getDeptId()); List<SysDept> children=sysDeptMapper.selectChildrenDeptById(staff.getDeptId()); if(children!=null) for(SysDept d:children){ if("0".equals(d.getStatus())) ids.add(d.getDeptId()); } } return ids; }
     private String getStaffId(HttpServletRequest request){ Object attr=request.getAttribute("staffUserId"); return attr!=null?String.valueOf(attr):"system"; }
+    private String staffName(SysUser staff){ String name=staff.getNickName(); return name!=null&&!name.trim().isEmpty()?name.trim():staff.getUserName(); }
     private boolean hasStaffPerm(HttpServletRequest request,String... perms){ SysUser staff=currentStaff(request); if(staff.isAdmin()) return true; Set<String> candidates=new HashSet<>(Arrays.asList(perms)); List<String> allPerms=sysMenuMapper.selectMenuPerms(); boolean configured=false; if(allPerms!=null) for(String p:allPerms){ if(candidates.contains(p)){ configured=true; break; } } if(!configured) return true; List<String> userPerms=sysMenuMapper.selectMenuPermsByUserId(staff.getUserId()); if(userPerms==null||userPerms.isEmpty()) return false; Set<String> set=new HashSet<>(); for(String p:userPerms){ if(p!=null&&!p.isEmpty()) set.add(p); } if(set.contains("*:*:*")) return true; for(String p:perms){ if(set.contains(p)) return true; } return false; }
     private String borrowDisabledReason(boolean memberActive,boolean hasBorrowCard,boolean hasBorrowQuota){ if(!memberActive) return "Member inactive"; if(!hasBorrowCard) return "No active borrow card"; if(!hasBorrowQuota) return "Borrow limit reached"; return null; }
     private int remainingQty(BookBorrowDetail d){ int b=d.getBorrowQty()!=null?d.getBorrowQty():0; int r=d.getReturnedQty()!=null?d.getReturnedQty():0; int p=d.getPurchaseQty()!=null?d.getPurchaseQty():0; return b-r-p; }

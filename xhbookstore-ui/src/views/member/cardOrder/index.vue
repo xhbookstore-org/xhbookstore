@@ -32,6 +32,14 @@
           <el-option label="已取消" :value="2" />
         </el-select>
       </el-form-item>
+      <el-form-item label="会员卡状态" prop="cardStatus">
+        <el-select v-model="queryParams.cardStatus" placeholder="请选择" clearable>
+          <el-option label="待生效" :value="0" />
+          <el-option label="生效中" :value="1" />
+          <el-option label="已过期" :value="2" />
+          <el-option label="已退卡" :value="3" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="门店" prop="deptId">
         <el-select v-model="queryParams.deptId" placeholder="请选择门店" clearable>
           <el-option v-for="d in deptOptions" :key="d.deptId" :label="d.deptName" :value="d.deptId" />
@@ -68,9 +76,14 @@
       <el-table-column label="支付方式" width="95">
         <template slot-scope="scope">{{ paymentTypeText(scope.row.paymentType) }}</template>
       </el-table-column>
-      <el-table-column label="状态" width="90" align="center">
+      <el-table-column label="订单状态" width="90" align="center">
         <template slot-scope="scope">
-          <el-tag size="mini" :type="scope.row.orderStatus === 1 ? 'success' : 'info'">{{ orderStatusText(scope.row.orderStatus) }}</el-tag>
+          <el-tag size="mini" :type="effectiveOrderStatus(scope.row) === 1 ? 'success' : 'info'">{{ orderStatusText(effectiveOrderStatus(scope.row)) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="会员卡状态" width="100" align="center">
+        <template slot-scope="scope">
+          <el-tag size="mini" :type="cardStatusType(scope.row.cardStatus)">{{ cardStatusText(scope.row.cardStatus) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="支付时间" width="160">
@@ -114,6 +127,7 @@ export default {
         cardTypeId: null,
         paymentType: null,
         orderStatus: null,
+        cardStatus: null,
         deptId: null,
         createStaffName: null
       }
@@ -154,6 +168,7 @@ export default {
         cardTypeId: null,
         paymentType: null,
         orderStatus: null,
+        cardStatus: null,
         deptId: null,
         createStaffName: null
       }
@@ -163,7 +178,16 @@ export default {
       return (this.queryParams.pageNum - 1) * this.queryParams.pageSize + index + 1
     },
     orderStatusText(status) {
-      return { 1: '已支付', 2: '已取消' }[status] || '未知'
+      return { 1: '已支付', 2: '已退款' }[status] || '未知'
+    },
+    effectiveOrderStatus(row) {
+      return row.cardStatus === 3 ? 2 : row.orderStatus
+    },
+    cardStatusText(status) {
+      return { 0: '待生效', 1: '生效中', 2: '已过期', 3: '已退卡' }[status] || '未知'
+    },
+    cardStatusType(status) {
+      return { 0: 'warning', 1: 'success', 2: 'info', 3: 'danger' }[status] || 'info'
     },
     paymentTypeText(type) {
       return { STAFF_INPUT: '员工录入', ERP_IMPORT: 'ERP导入', CASH: '现金', OTHER: '其他' }[type] || (type || '-')

@@ -23,6 +23,7 @@ import com.xhbookstore.common.core.domain.entity.SysUser;
 import com.xhbookstore.common.core.redis.RedisCache;
 import com.xhbookstore.common.utils.SecurityUtils;
 import com.xhbookstore.common.utils.StringUtils;
+import com.xhbookstore.common.exception.ServiceException;
 import com.xhbookstore.system.domain.dashboard.MemberDashboardDeptStats;
 import com.xhbookstore.system.domain.dashboard.MemberDashboardLoginStats;
 import com.xhbookstore.system.domain.dashboard.MemberDashboardOverview;
@@ -33,7 +34,6 @@ import com.xhbookstore.system.service.dashboard.IMemberDashboardService;
 @Service
 public class MemberDashboardServiceImpl implements IMemberDashboardService {
     private static final String DEPT_KEY_PREFIX = "dashboard:member:dept:";
-    private static final String LOGIN_KEY = "dashboard:member:login";
     private static final String DEPT_IDS_KEY = "dashboard:member:dept_ids";
     private static final String LAST_REFRESH_AT_KEY = "dashboard:member:last_refresh_at";
     private static final String LAST_REFRESH_STATUS_KEY = "dashboard:member:last_refresh_status";
@@ -49,8 +49,14 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
     private RedisCache redisCache;
 
     @Override
-    public MemberDashboardOverview getOverview() {
-        List<Long> visibleDeptIds = resolveVisibleDeptIds();
+    public MemberDashboardOverview getOverview(Long selectedDeptId) {
+        List<Long> allowedDeptIds = resolveVisibleDeptIds();
+        if (selectedDeptId != null && !allowedDeptIds.contains(selectedDeptId)) {
+            throw new ServiceException("无权查看该门店数据");
+        }
+        List<Long> visibleDeptIds = selectedDeptId == null
+                ? allowedDeptIds
+                : Collections.singletonList(selectedDeptId);
         if (redisCache.getCacheObject(LAST_REFRESH_AT_KEY) == null) {
             refreshStatsWithLock();
         }
@@ -66,10 +72,11 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
             merged.add(item);
         }
 
-        MemberDashboardLoginStats loginStats = redisCache.getCacheObject(LOGIN_KEY);
-        if (loginStats == null) {
-            loginStats = new MemberDashboardLoginStats();
-        }
+        MemberDashboardLoginStats loginStats = new MemberDashboardLoginStats();
+        loginStats.setTotalLoginCount(merged.getTotalLoginCount());
+        loginStats.setYearLoginCount(merged.getYearLoginCount());
+        loginStats.setMonthLoginCount(merged.getMonthLoginCount());
+        loginStats.setYesterdayLoginCount(merged.getYesterdayLoginCount());
 
         MemberDashboardOverview overview = new MemberDashboardOverview();
         overview.setStats(merged);
@@ -80,8 +87,21 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
         overview.setRefreshedAt(redisCache.getCacheObject(LAST_REFRESH_AT_KEY));
         overview.setRefreshStatus(redisCache.getCacheObject(LAST_REFRESH_STATUS_KEY));
         overview.setScopeName(buildScopeName(visibleDeptIds));
-        overview.setLoginStatsScopeNote("登录统计按小程序登录接口全局成功次数统计；会员码展示量按会员所属门店计入当前数据权限范围。");
+        overview.setLoginStatsScopeNote("登录次数和会员码展示量均按会员所属门店统计，并受当前登录人的数据权限限制。");
         return overview;
+    }
+
+    @Override
+    public List<SysDept> getVisibleDeptOptions() {
+        List<Long> visibleDeptIds = resolveVisibleDeptIds();
+        List<SysDept> result = new ArrayList<>();
+        for (Long deptId : visibleDeptIds) {
+            SysDept dept = deptMapper.selectDeptById(deptId);
+            if (dept != null && "0".equals(dept.getStatus())) {
+                result.add(dept);
+            }
+        }
+        return result;
     }
 
     @Override
@@ -110,6 +130,7 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
     private void refreshStats() {
         List<MemberDashboardDeptStats> memberStats = dashboardMapper.selectDeptMemberStats();
         List<MemberDashboardDeptStats> codeStats = dashboardMapper.selectDeptMemberCodeStats();
+        List<MemberDashboardDeptStats> loginStats = dashboardMapper.selectDeptLoginStats();
         List<Long> oldDeptIds = redisCache.getCacheObject(DEPT_IDS_KEY);
         if (oldDeptIds != null && !oldDeptIds.isEmpty()) {
             redisCache.deleteObject(oldDeptIds.stream().map(id -> DEPT_KEY_PREFIX + id).collect(Collectors.toList()));
@@ -140,9 +161,25 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
             deptIds.add(item.getDeptId());
             redisCache.setCacheObject(DEPT_KEY_PREFIX + item.getDeptId(), cached);
         }
+        for (MemberDashboardDeptStats item : loginStats) {
+            if (item.getDeptId() == null) {
+                continue;
+            }
+            MemberDashboardDeptStats cached = redisCache.getCacheObject(DEPT_KEY_PREFIX + item.getDeptId());
+            if (cached == null) {
+                cached = new MemberDashboardDeptStats();
+                cached.setDeptId(item.getDeptId());
+                cached.setDeptName(item.getDeptName());
+            }
+            cached.setTotalLoginCount(item.getTotalLoginCount());
+            cached.setYearLoginCount(item.getYearLoginCount());
+            cached.setMonthLoginCount(item.getMonthLoginCount());
+            cached.setYesterdayLoginCount(item.getYesterdayLoginCount());
+            deptIds.add(item.getDeptId());
+            redisCache.setCacheObject(DEPT_KEY_PREFIX + item.getDeptId(), cached);
+        }
 
         redisCache.setCacheObject(DEPT_IDS_KEY, new ArrayList<>(deptIds));
-        redisCache.setCacheObject(LOGIN_KEY, dashboardMapper.selectLoginStats());
         redisCache.setCacheObject(LAST_REFRESH_AT_KEY, new Date());
         redisCache.setCacheObject(LAST_REFRESH_STATUS_KEY, "SUCCESS");
     }

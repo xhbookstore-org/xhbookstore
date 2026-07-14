@@ -8,9 +8,14 @@
           <span v-if="overview.refreshedAt"> · 更新于 {{ overview.refreshedAt }}</span>
         </div>
       </div>
-      <el-button type="primary" icon="el-icon-refresh" size="small" :loading="refreshing" @click="handleRefresh" v-hasPermi="['dashboard:member:refresh']">
-        刷新统计
-      </el-button>
+      <div class="dashboard-actions">
+        <el-select v-model="selectedDeptId" size="small" clearable placeholder="全部可见门店" @change="getOverview">
+          <el-option v-for="dept in deptOptions" :key="dept.deptId" :label="dept.deptName" :value="dept.deptId" />
+        </el-select>
+        <el-button type="primary" icon="el-icon-refresh" size="small" :loading="refreshing" @click="handleRefresh" v-hasPermi="['dashboard:member:refresh']">
+          刷新统计
+        </el-button>
+      </div>
     </div>
 
     <el-alert
@@ -64,7 +69,7 @@
 </template>
 
 <script>
-import { getMemberDashboardOverview, refreshMemberDashboard } from '@/api/dashboard'
+import { getMemberDashboardOverview, getMemberDashboardDeptOptions, refreshMemberDashboard } from '@/api/dashboard'
 
 export default {
   name: 'Index',
@@ -72,6 +77,8 @@ export default {
     return {
       loading: false,
       refreshing: false,
+      selectedDeptId: null,
+      deptOptions: [],
       overview: {
         stats: {},
         loginStats: {}
@@ -125,15 +132,21 @@ export default {
     }
   },
   created() {
+    this.getDeptOptions()
     this.getOverview()
   },
   methods: {
     getOverview() {
       this.loading = true
-      getMemberDashboardOverview().then(res => {
+      getMemberDashboardOverview(this.selectedDeptId).then(res => {
         this.overview = res.data || { stats: {}, loginStats: {} }
       }).finally(() => {
         this.loading = false
+      })
+    },
+    getDeptOptions() {
+      getMemberDashboardDeptOptions().then(res => {
+        this.deptOptions = res.data || []
       })
     },
     handleRefresh() {
@@ -166,6 +179,12 @@ export default {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
+}
+
+.dashboard-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .dashboard-title {

@@ -23,6 +23,7 @@ public class MemberCardOrder extends BaseEntity {
     private BigDecimal paidAmount;
     private String paymentType;
     private Integer orderStatus;
+    private Integer cardStatus;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date payTime;
     private Long deptId;
@@ -70,6 +71,8 @@ public class MemberCardOrder extends BaseEntity {
     public void setPaymentType(String paymentType) { this.paymentType = paymentType; }
     public Integer getOrderStatus() { return orderStatus; }
     public void setOrderStatus(Integer orderStatus) { this.orderStatus = orderStatus; }
+    public Integer getCardStatus() { return cardStatus; }
+    public void setCardStatus(Integer cardStatus) { this.cardStatus = cardStatus; }
     public Date getPayTime() { return payTime; }
     public void setPayTime(Date payTime) { this.payTime = payTime; }
     public Long getDeptId() { return deptId; }

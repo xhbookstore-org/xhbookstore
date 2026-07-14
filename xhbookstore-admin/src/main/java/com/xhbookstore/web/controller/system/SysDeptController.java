@@ -77,6 +77,11 @@ public class SysDeptController extends BaseController
     @PostMapping
     public AjaxResult add(@Validated @RequestBody SysDept dept)
     {
+        SysDept parent = deptService.selectDeptById(dept.getParentId());
+        if (parent == null || parent.getParentId() == null || parent.getParentId() != 0L)
+        {
+            return error("上级部门只能选择一级部门");
+        }
         if (!deptService.checkDeptNameUnique(dept))
         {
             return error("新增部门'" + dept.getDeptName() + "'失败，部门名称已存在");
@@ -99,6 +104,17 @@ public class SysDeptController extends BaseController
     {
         Long deptId = dept.getDeptId();
         deptService.checkDeptDataScope(deptId);
+        SysDept existing = deptService.selectDeptById(deptId);
+        if (existing == null)
+        {
+            return error("部门不存在");
+        }
+        dept.setParentId(existing.getParentId());
+        dept.setAncestors(existing.getAncestors());
+        dept.setLeader(existing.getLeader());
+        dept.setPhone(existing.getPhone());
+        dept.setEmail(existing.getEmail());
+        dept.setErpDeptId(existing.getErpDeptId());
         if (!deptService.checkDeptNameUnique(dept))
         {
             return error("修改部门'" + dept.getDeptName() + "'失败，部门名称已存在");

@@ -22,6 +22,10 @@ public class MemberDashboardDeptStats implements Serializable {
     private Long yearMemberCodeShowCount = 0L;
     private Long monthMemberCodeShowCount = 0L;
     private Long yesterdayMemberCodeShowCount = 0L;
+    private Long totalLoginCount = 0L;
+    private Long yearLoginCount = 0L;
+    private Long monthLoginCount = 0L;
+    private Long yesterdayLoginCount = 0L;
 
     public void add(MemberDashboardDeptStats other) {
         if (other == null) {
@@ -42,6 +46,10 @@ public class MemberDashboardDeptStats implements Serializable {
         yearMemberCodeShowCount += nvl(other.yearMemberCodeShowCount);
         monthMemberCodeShowCount += nvl(other.monthMemberCodeShowCount);
         yesterdayMemberCodeShowCount += nvl(other.yesterdayMemberCodeShowCount);
+        totalLoginCount += nvl(other.totalLoginCount);
+        yearLoginCount += nvl(other.yearLoginCount);
+        monthLoginCount += nvl(other.monthLoginCount);
+        yesterdayLoginCount += nvl(other.yesterdayLoginCount);
     }
 
     private long nvl(Long value) {
@@ -82,4 +90,12 @@ public class MemberDashboardDeptStats implements Serializable {
     public void setMonthMemberCodeShowCount(Long monthMemberCodeShowCount) { this.monthMemberCodeShowCount = monthMemberCodeShowCount; }
     public Long getYesterdayMemberCodeShowCount() { return yesterdayMemberCodeShowCount; }
     public void setYesterdayMemberCodeShowCount(Long yesterdayMemberCodeShowCount) { this.yesterdayMemberCodeShowCount = yesterdayMemberCodeShowCount; }
+    public Long getTotalLoginCount() { return totalLoginCount; }
+    public void setTotalLoginCount(Long totalLoginCount) { this.totalLoginCount = totalLoginCount; }
+    public Long getYearLoginCount() { return yearLoginCount; }
+    public void setYearLoginCount(Long yearLoginCount) { this.yearLoginCount = yearLoginCount; }
+    public Long getMonthLoginCount() { return monthLoginCount; }
+    public void setMonthLoginCount(Long monthLoginCount) { this.monthLoginCount = monthLoginCount; }
+    public Long getYesterdayLoginCount() { return yesterdayLoginCount; }
+    public void setYesterdayLoginCount(Long yesterdayLoginCount) { this.yesterdayLoginCount = yesterdayLoginCount; }
 }

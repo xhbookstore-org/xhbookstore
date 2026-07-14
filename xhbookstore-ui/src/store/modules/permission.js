@@ -39,10 +39,11 @@ const permission = {
           const sidebarRoutes = filterAsyncRouter(sdata)
           const rewriteRoutes = filterAsyncRouter(rdata, false, true)
           const asyncRoutes = filterDynamicRoutes(dynamicRoutes)
+          const constantSidebarRoutes = filterSidebarRoutes(constantRoutes)
           rewriteRoutes.push({ path: '*', redirect: '/404', hidden: true })
           router.addRoutes(asyncRoutes)
           commit('SET_ROUTES', rewriteRoutes)
-          commit('SET_SIDEBAR_ROUTERS', constantRoutes.concat(sidebarRoutes))
+          commit('SET_SIDEBAR_ROUTERS', constantSidebarRoutes.concat(sidebarRoutes))
           commit('SET_DEFAULT_ROUTES', sidebarRoutes)
           commit('SET_TOPBAR_ROUTES', sidebarRoutes)
           resolve(rewriteRoutes)
@@ -53,6 +54,23 @@ const permission = {
 }
 
 // 遍历后台传来的路由字符串，转换为组件对象
+function filterSidebarRoutes(routes) {
+  return routes.reduce((result, route) => {
+    if (route.permissions && !auth.hasPermiOr(route.permissions)) {
+      return result
+    }
+    if (route.roles && !auth.hasRoleOr(route.roles)) {
+      return result
+    }
+    const item = { ...route }
+    if (item.children) {
+      item.children = filterSidebarRoutes(item.children)
+    }
+    result.push(item)
+    return result
+  }, [])
+}
+
 function filterAsyncRouter(asyncRouterMap, lastRouter = false, type = false) {
   return asyncRouterMap.filter(route => {
     if (type && route.children) {

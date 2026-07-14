@@ -18,6 +18,7 @@
         <result property="paidAmount" column="paid_amount"/>
         <result property="paymentType" column="payment_type"/>
         <result property="orderStatus" column="order_status"/>
+        <result property="cardStatus" column="card_status"/>
         <result property="payTime" column="pay_time"/>
         <result property="deptId" column="dept_id"/>
         <result property="createStaffId" column="create_staff_id"/>
@@ -45,6 +46,12 @@
         where order_no = #{orderNo} and is_del = 0
     </update>
 
+    <update id="updateOrderStatusByMemberCardId">
+        update member_card_order
+        set order_status = #{orderStatus}, updated_at = now()
+        where member_card_id = #{memberCardId} and is_del = 0
+    </update>
+
     <select id="selectByOrderNo" parameterType="String" resultMap="MemberCardOrderResult">
         select * from member_card_order where order_no = #{orderNo} and is_del = 0
     </select>
@@ -55,11 +62,13 @@
 
     <select id="selectList" parameterType="com.xhbookstore.system.domain.member.MemberCardOrder" resultMap="MemberCardOrderResult">
         select o.*,
+               c.status as card_status,
                coalesce(nullif(o.member_name, ''), m.name) as member_name,
                coalesce(nullif(o.member_phone, ''), m.phone) as member_phone,
                d.dept_name
         from member_card_order o
         left join member m on o.member_id = m.id
+        left join member_card c on o.member_card_id = c.id and c.is_del = 0
         left join sys_dept d on o.dept_id = d.dept_id
         <where>
             o.is_del = 0
@@ -72,7 +81,10 @@
             <if test="cardTypeId != null">and o.card_type_id = #{cardTypeId}</if>
             <if test="cardTypeName != null and cardTypeName != ''">and o.card_type_name like concat('%', #{cardTypeName}, '%')</if>
             <if test="paymentType != null and paymentType != ''">and o.payment_type = #{paymentType}</if>
-            <if test="orderStatus != null">and o.order_status = #{orderStatus}</if>
+            <if test="orderStatus != null">
+                and (case when c.status = 3 then 2 else o.order_status end) = #{orderStatus}
+            </if>
+            <if test="cardStatus != null">and c.status = #{cardStatus}</if>
             <if test="deptId != null and deptId != 0">and o.dept_id = #{deptId}</if>
             <if test="createStaffName != null and createStaffName != ''">and o.create_staff_name like concat('%', #{createStaffName}, '%')</if>
             <if test="beginPayTime != null and beginPayTime != ''">and o.pay_time &gt;= #{beginPayTime}</if>

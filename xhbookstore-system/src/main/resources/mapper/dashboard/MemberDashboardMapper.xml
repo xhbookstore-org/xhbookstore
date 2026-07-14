@@ -20,6 +20,10 @@
         <result property="yearMemberCodeShowCount" column="year_member_code_show_count"/>
         <result property="monthMemberCodeShowCount" column="month_member_code_show_count"/>
         <result property="yesterdayMemberCodeShowCount" column="yesterday_member_code_show_count"/>
+        <result property="totalLoginCount" column="total_login_count"/>
+        <result property="yearLoginCount" column="year_login_count"/>
+        <result property="monthLoginCount" column="month_login_count"/>
+        <result property="yesterdayLoginCount" column="yesterday_login_count"/>
     </resultMap>
 
     <select id="selectDeptMemberStats" resultMap="DeptStatsResult">
@@ -49,6 +53,22 @@
         group by m.dept_id
     </select>
 
+    <select id="selectDeptLoginStats" resultMap="DeptStatsResult">
+        select
+            m.dept_id,
+            max(d.dept_name) as dept_name,
+            count(1) as total_login_count,
+            sum(case when l.created_at &gt;= date_format(curdate(), '%Y-01-01') then 1 else 0 end) as year_login_count,
+            sum(case when l.created_at &gt;= date_format(curdate(), '%Y-%m-01') then 1 else 0 end) as month_login_count,
+            sum(case when l.created_at &gt;= date_sub(curdate(), interval 1 day) and l.created_at &lt; curdate() then 1 else 0 end) as yesterday_login_count
+        from xhbs_api_log l
+        inner join member m on l.user_id = concat('M', m.id)
+        left join sys_dept d on d.dept_id = m.dept_id
+        where l.request_uri = '/api/mp/v1/auth/wechat-phone-login'
+          and l.response_code = 0
+        group by m.dept_id
+    </select>
+
     <select id="selectDeptMemberCodeStats" resultMap="DeptStatsResult">
         select
             m.dept_id,
@@ -65,14 +85,4 @@
         group by m.dept_id
     </select>
 
-    <select id="selectLoginStats" resultType="com.xhbookstore.system.domain.dashboard.MemberDashboardLoginStats">
-        select
-            count(1) as totalLoginCount,
-            sum(case when created_at &gt;= date_format(curdate(), '%Y-01-01') then 1 else 0 end) as yearLoginCount,
-            sum(case when created_at &gt;= date_format(curdate(), '%Y-%m-01') then 1 else 0 end) as monthLoginCount,
-            sum(case when created_at &gt;= date_sub(curdate(), interval 1 day) and created_at &lt; curdate() then 1 else 0 end) as yesterdayLoginCount
-        from xhbs_api_log
-        where request_uri = '/api/mp/v1/auth/wechat-phone-login'
-          and response_code = 0
-    </select>
 </mapper>
