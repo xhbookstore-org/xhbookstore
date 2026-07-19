@@ -1,8 +1,10 @@
 package com.xhbookstore.system.service.member;
 
 import java.util.List;
+import java.util.Map;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.system.domain.member.PointsOrder;
+import com.xhbookstore.system.domain.member.PointsRule;
 
 /**
  * 积分/书城币管理服务接口
@@ -24,6 +26,16 @@ public interface IPointsService {
      * 扣减用户积分（悲观锁+事务）
      */
     AjaxResult deductPoints(Integer memberId, Integer points, String description, String operator, String operationDevice);
+
+    /** 查询会员当前可人工选择且已配置积分值的规则。 */
+    List<PointsRule> selectManualFixedRules(Integer memberId, String direction);
+
+    /** 按积分规则执行人工加分或扣分；仅规则允许时接受员工录入基础积分。 */
+    AjaxResult adjustPointsByRule(Integer memberId, Long ruleId, Integer requestedPoints, String description,
+                                  Long operatorUserId, String operator, String operationDevice);
+
+    /** 根据 BORROW_BOOK 规则按逐册明细数发放积分，同一借阅单全局幂等。 */
+    Map<String, Object> grantBorrowPoints(Integer memberId, String borrowOrderNo, int detailCount, Long deptId);
 
     /**
      * 查询会员积分订单列表

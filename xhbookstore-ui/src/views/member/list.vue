@@ -141,39 +141,66 @@
       </div>
     </el-dialog>
 
-    <el-dialog title="积分管理" :visible.sync="pointsVisible" width="950px" append-to-body>
+    <el-dialog title="积分管理" :visible.sync="pointsVisible" width="1120px" append-to-body>
       <p style="margin-bottom:10px">
         会员：<b>{{ pointsMember.name }}</b>（{{ pointsMember.cardNo }}） 当前积分：<b style="color:#409EFF">{{ pointsMember.currentPoints }}</b>
       </p>
-      <el-button type="primary" size="small" icon="el-icon-plus" @click="showAddPoints" style="margin-bottom:10px" v-hasPermi="['member:member:points']">添加积分</el-button>
-      <el-table :data="pointsList" size="small" max-height="300">
-        <el-table-column label="订单号" prop="orderNumber" width="200" :show-overflow-tooltip="true" />
-        <el-table-column label="金额" prop="amount" width="80">
-          <template slot-scope="s">+{{ s.row.amount }}</template>
+      <div class="points-actions">
+        <el-button type="primary" size="small" icon="el-icon-plus" @click="showAdjustPoints('ADD')" v-hasPermi="['member:member:points']">加积分</el-button>
+        <el-button type="danger" size="small" icon="el-icon-minus" @click="showAdjustPoints('DEDUCT')" v-hasPermi="['member:member:points']">减积分</el-button>
+      </div>
+      <div class="points-record-title">积分记录</div>
+      <el-table v-loading="pointsLoading" :data="pointsList" size="small" max-height="360" border>
+        <el-table-column label="订单号" prop="orderNumber" width="190" :show-overflow-tooltip="true" />
+        <el-table-column label="规则" prop="ruleName" min-width="125" :show-overflow-tooltip="true">
+          <template slot-scope="s">{{ s.row.ruleName || s.row.description || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="积分" prop="amount" width="90" align="right">
+          <template slot-scope="s">
+            <span :class="s.row.amount >= 0 ? 'points-add' : 'points-deduct'">{{ s.row.amount > 0 ? '+' : '' }}{{ s.row.amount }}</span>
+          </template>
         </el-table-column>
         <el-table-column label="操作前" prop="orginPoints" width="80" />
         <el-table-column label="操作后" prop="afterPoints" width="80" />
-        <el-table-column label="描述" prop="description" min-width="120" :show-overflow-tooltip="true" />
-        <el-table-column label="操作设备" prop="operationDevice" width="80" />
-        <el-table-column label="时间" prop="createdAt" width="160" />
+        <el-table-column label="备注" prop="description" min-width="140" :show-overflow-tooltip="true" />
+        <el-table-column label="操作人" prop="operatorName" width="100">
+          <template slot-scope="s">{{ s.row.operatorName || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="状态" prop="orderStatus" width="80" align="center">
+          <template slot-scope="s"><el-tag size="mini" :type="pointsStatusTag(s.row)">{{ pointsStatusText(s.row.availabilityStatus !== 'AVAILABLE' ? s.row.availabilityStatus : s.row.orderStatus) }}</el-tag></template>
+        </el-table-column>
+        <el-table-column label="操作时间" width="160">
+          <template slot-scope="s">{{ s.row.operationTime || s.row.createdAt || '-' }}</template>
+        </el-table-column>
       </el-table>
       <div slot="footer">
         <el-button @click="pointsVisible=false">关闭</el-button>
       </div>
     </el-dialog>
 
-    <el-dialog title="添加积分" :visible.sync="addPointsVisible" width="400px" append-to-body>
-      <el-form ref="addPointsForm" :model="addPointsForm" :rules="addPointsRules" label-width="80px">
-        <el-form-item label="积分数额" prop="points">
-          <el-input-number v-model="addPointsForm.points" :min="1" :max="99999" placeholder="请输入" style="width:100%" />
+    <el-dialog :title="pointsAction === 'ADD' ? '加积分' : '减积分'" :visible.sync="adjustPointsVisible" width="460px" append-to-body>
+      <el-form ref="adjustPointsForm" :model="adjustPointsForm" :rules="adjustPointsRules" label-width="90px">
+        <el-form-item label="积分规则" prop="ruleId">
+          <el-select v-model="adjustPointsForm.ruleId" v-loading="pointsRuleLoading" placeholder="请选择积分规则" style="width:100%" @change="handlePointsRuleChange">
+            <el-option v-for="rule in pointsRuleOptions" :key="rule.id" :label="rule.ruleName" :value="rule.id">
+              <span>{{ rule.ruleName }}</span>
+              <span style="float:right;color:#8492a6">{{ rulePointsValue(rule) }} 积分</span>
+            </el-option>
+          </el-select>
         </el-form-item>
-        <el-form-item label="描述" prop="description">
-          <el-input v-model="addPointsForm.description" type="textarea" placeholder="请输入" maxlength="255" />
+        <el-form-item label="积分数值">
+          <el-input-number v-if="selectedPointsRule && selectedPointsRule.manualPointsEditable === 1" v-model="adjustPointsForm.points" :min="1" :max="selectedPointsRule.maxPointsPerOrder || 999999" :precision="0" style="width:100%" />
+          <el-input v-else :value="adjustPointsForm.points ? ((pointsAction === 'ADD' ? '+' : '-') + adjustPointsForm.points) : ''" disabled placeholder="选择规则后自动带出" />
         </el-form-item>
+        <el-alert v-if="memberDayPreview" :title="memberDayPreview" type="success" :closable="false" style="margin-bottom:18px" />
+        <el-form-item label="备注" prop="description">
+          <el-input v-model="adjustPointsForm.description" type="textarea" placeholder="请输入本次积分调整原因" maxlength="255" show-word-limit />
+        </el-form-item>
+        <el-alert v-if="!pointsRuleLoading && pointsRuleOptions.length === 0" title="暂无可用的积分规则，请先在积分规则管理中配置积分值并启用。" type="warning" :closable="false" />
       </el-form>
       <div slot="footer">
-        <el-button type="primary" @click="submitAddPoints" :loading="addingPoints">确定</el-button>
-        <el-button @click="addPointsVisible=false">取消</el-button>
+        <el-button :type="pointsAction === 'ADD' ? 'primary' : 'danger'" @click="submitAdjustPoints" :loading="adjustingPoints" :disabled="pointsRuleOptions.length === 0">确定</el-button>
+        <el-button @click="adjustPointsVisible=false">取消</el-button>
       </div>
     </el-dialog>
 
@@ -382,7 +409,7 @@
 </template>
 
 <script>
-import { listMember, getMember, addMember, updateMember, delMember, listCardTypes, listMemberDepts, listPoints, addPoints, getMemberCards, refundMemberCard, importMember } from '@/api/member/member'
+import { listMember, getMember, addMember, updateMember, delMember, listCardTypes, listMemberDepts, listPoints, listPointsRules, adjustPoints, getMemberCards, refundMemberCard, importMember } from '@/api/member/member'
 
 export default {
   name: 'MemberList',
@@ -413,12 +440,16 @@ export default {
       pointsVisible: false,
       pointsMember: {},
       pointsList: [],
-      addPointsVisible: false,
-      addingPoints: false,
-      addPointsForm: { points: null, description: '' },
-      addPointsRules: {
-        points: [{ required: true, message: '请填写', trigger: 'blur' }],
-        description: [{ required: true, message: '请填写', trigger: 'blur' }]
+      pointsLoading: false,
+      adjustPointsVisible: false,
+      adjustingPoints: false,
+      pointsAction: 'ADD',
+      pointsRuleLoading: false,
+      pointsRuleOptions: [],
+      adjustPointsForm: { ruleId: null, points: null, description: '' },
+      adjustPointsRules: {
+        ruleId: [{ required: true, message: '请选择积分规则', trigger: 'change' }],
+        description: [{ required: true, message: '请输入本次积分调整原因', trigger: 'blur' }]
       },
       cardVisible: false,
       cardLoading: false,
@@ -454,6 +485,19 @@ export default {
     }
   },
   computed: {
+    selectedPointsRule() {
+      return this.pointsRuleOptions.find(item => item.id === this.adjustPointsForm.ruleId) || null
+    },
+    previewFinalPoints() {
+      if (!this.adjustPointsForm.points) return null
+      const multiplier = this.isMemberDay(this.selectedPointsRule)
+        ? Number(this.selectedPointsRule.memberDayMultiplier || 1) : 1
+      return this.adjustPointsForm.points * multiplier
+    },
+    memberDayPreview() {
+      if (!this.isMemberDay(this.selectedPointsRule) || !this.adjustPointsForm.points) return ''
+      return `今天是会员日：基础积分 ${this.adjustPointsForm.points} × ${Number(this.selectedPointsRule.memberDayMultiplier)} = 最终积分 ${this.previewFinalPoints}`
+    },
     importFailures() {
       return (this.lastImportResult && this.lastImportResult.failureRows) || []
     },
@@ -664,33 +708,68 @@ export default {
     },
     handlePoints(row) {
       this.pointsMember = row
+      this.pointsVisible = true
+      this.pointsLoading = true
       listPoints(row.id).then(r => {
         this.pointsList = r.data || []
-        this.pointsVisible = true
-      })
+        this.pointsLoading = false
+      }).catch(() => { this.pointsLoading = false })
     },
-    showAddPoints() {
-      this.addPointsForm = { points: null, description: '' }
-      this.addPointsVisible = true
-      this.$nextTick(() => { if (this.$refs.addPointsForm) this.$refs.addPointsForm.clearValidate() })
+    showAdjustPoints(direction) {
+      this.pointsAction = direction
+      this.pointsRuleOptions = []
+      this.adjustPointsForm = { ruleId: null, points: null, description: '' }
+      this.adjustPointsVisible = true
+      this.pointsRuleLoading = true
+      listPointsRules(this.pointsMember.id, direction).then(r => {
+        this.pointsRuleOptions = r.data || []
+        this.pointsRuleLoading = false
+      }).catch(() => { this.pointsRuleLoading = false })
+      this.$nextTick(() => { if (this.$refs.adjustPointsForm) this.$refs.adjustPointsForm.clearValidate() })
     },
-    submitAddPoints() {
-      this.$refs.addPointsForm.validate(valid => {
+    handlePointsRuleChange(ruleId) {
+      const rule = this.pointsRuleOptions.find(item => item.id === ruleId)
+      this.adjustPointsForm.points = rule ? this.rulePointsValue(rule) : null
+    },
+    rulePointsValue(rule) {
+      return rule ? (rule.fixedPoints != null ? rule.fixedPoints : rule.pointsPerUnit) : null
+    },
+    isMemberDay(rule) {
+      if (!rule || rule.memberDayEnabled !== 1 || !rule.memberDayDays) return false
+      try { return JSON.parse(rule.memberDayDays).includes(new Date().getDate()) } catch (e) { return false }
+    },
+    submitAdjustPoints() {
+      this.$refs.adjustPointsForm.validate(valid => {
         if (!valid) return
-        this.addingPoints = true
-        addPoints(this.pointsMember.id, this.addPointsForm).then(r => {
-          if (r.code === 200) {
-            this.$modal.msgSuccess(r.msg)
-            this.addPointsVisible = false
-            listPoints(this.pointsMember.id).then(res => { this.pointsList = res.data || [] })
-            this.pointsMember.currentPoints = (this.pointsMember.currentPoints || 0) + this.addPointsForm.points
-            this.getList()
-          } else {
-            this.$modal.msgError(r.msg)
-          }
-          this.addingPoints = false
-        }).catch(() => { this.addingPoints = false })
+        const actionText = this.pointsAction === 'ADD' ? '增加' : '扣减'
+        this.$confirm(`确认按所选规则${actionText} ${this.previewFinalPoints} 积分吗？`, '积分操作确认', { type: 'warning' }).then(() => {
+          this.adjustingPoints = true
+          adjustPoints(this.pointsMember.id, {
+            ruleId: this.adjustPointsForm.ruleId,
+            points: this.adjustPointsForm.points,
+            description: this.adjustPointsForm.description
+          }).then(r => {
+            if (r.code === 200) {
+              this.$modal.msgSuccess(r.msg)
+              this.adjustPointsVisible = false
+              listPoints(this.pointsMember.id).then(res => { this.pointsList = res.data || [] })
+              if (r.data && r.data.afterPoints !== undefined) this.pointsMember.currentPoints = r.data.afterPoints
+              this.getList()
+            } else {
+              this.$modal.msgError(r.msg)
+            }
+            this.adjustingPoints = false
+          }).catch(() => { this.adjustingPoints = false })
+        })
       })
+    },
+    pointsStatusText(status) {
+      return { SUCCESS: '成功', PENDING: '待处理', PROCESSING: '处理中', FAILED: '失败', REVERSED: '已冲正', FROZEN: '冻结中', CANCELLED: '已冲销', AVAILABLE: '可用' }[status] || status || '成功'
+    },
+    pointsStatusTag(row) {
+      if (row.availabilityStatus === 'FROZEN') return 'warning'
+      if (row.availabilityStatus === 'CANCELLED' || row.orderStatus === 'REVERSED') return 'info'
+      return row.orderStatus === 'SUCCESS' ? 'success' : 'info'
     },
     handleImport() {
       this.importForm = { deptId: this.queryParams.deptId || null, file: null }
@@ -778,6 +857,24 @@ export default {
 </script>
 
 <style scoped>
+.points-actions {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.points-record-title {
+  margin-bottom: 8px;
+  color: #303133;
+  font-weight: 600;
+}
+.points-add {
+  color: #67c23a;
+  font-weight: 600;
+}
+.points-deduct {
+  color: #f56c6c;
+  font-weight: 600;
+}
 .refund-member-line {
   margin-bottom: 12px;
   color: #606266;

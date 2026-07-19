@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.PointsRuleMapper">
+    <resultMap id="PointsRuleResult" type="com.xhbookstore.system.domain.member.PointsRule">
+        <id property="id" column="id"/>
+        <result property="ruleCode" column="rule_code"/>
+        <result property="ruleName" column="rule_name"/>
+        <result property="sceneCode" column="scene_code"/>
+        <result property="ruleSource" column="rule_source"/>
+        <result property="implementationStatus" column="implementation_status"/>
+        <result property="direction" column="direction"/>
+        <result property="triggerMode" column="trigger_mode"/>
+        <result property="triggerEvent" column="trigger_event"/>
+        <result property="calculationMode" column="calculation_mode"/>
+        <result property="fixedPoints" column="fixed_points"/>
+        <result property="pointsPerUnit" column="points_per_unit"/>
+        <result property="unitType" column="unit_type"/>
+        <result property="manualPointsEditable" column="manual_points_editable"/>
+        <result property="memberDayEnabled" column="member_day_enabled"/>
+        <result property="memberDayDays" column="member_day_days"/>
+        <result property="memberDayMultiplier" column="member_day_multiplier"/>
+        <result property="effectiveFrom" column="effective_from"/>
+        <result property="effectiveTo" column="effective_to"/>
+        <result property="memberLimit" column="member_limit"/>
+        <result property="totalLimit" column="total_limit"/>
+        <result property="usedCount" column="used_count"/>
+        <result property="budgetPoints" column="budget_points"/>
+        <result property="usedPoints" column="used_points"/>
+        <result property="maxPointsPerOrder" column="max_points_per_order"/>
+        <result property="requireBizOrder" column="require_biz_order"/>
+        <result property="requireEvidence" column="require_evidence"/>
+        <result property="excludeBulkPurchase" column="exclude_bulk_purchase"/>
+        <result property="freezeDays" column="freeze_days"/>
+        <result property="status" column="status"/>
+        <result property="remark" column="remark"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="operatorUserId" column="operator_user_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="operationTime" column="operation_time"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <select id="selectActiveForUpdate" resultMap="PointsRuleResult">
+        select * from xhbs_points_rule
+        where scene_code = #{sceneCode}
+          and direction = 'ADD'
+          and trigger_mode = 'AUTO'
+          and trigger_event = #{triggerEvent}
+          and status = 'ENABLED' and is_deleted = 0
+          and (effective_from is null or effective_from &lt;= now())
+          and (effective_to is null or effective_to &gt;= now())
+          and (dept_ids is null or json_length(dept_ids) = 0
+               or (#{deptId} is not null and json_contains(dept_ids, cast(#{deptId} as json))))
+          and (card_type_ids is null or json_length(card_type_ids) = 0
+               or (#{cardTypeId} is not null and json_contains(card_type_ids, cast(#{cardTypeId} as json))))
+        order by effective_from desc, id desc
+        limit 1 for update
+    </select>
+
+    <update id="incrementUsage">
+        update xhbs_points_rule
+        set used_count = used_count + 1,
+            used_points = used_points + case when direction = 'ADD' then #{points} else 0 end,
+            lock_version = lock_version + 1,
+            updated_at = now()
+        where id = #{ruleId} and status = 'ENABLED'
+          and (total_limit is null or used_count &lt; total_limit)
+          and (direction &lt;&gt; 'ADD' or budget_points is null or used_points + #{points} &lt;= budget_points)
+    </update>
+
+    <sql id="manualFixedRuleWhere">
+        ((calculation_mode = 'FIXED' and fixed_points is not null and fixed_points &gt; 0)
+         or (calculation_mode in ('PER_ITEM', 'PER_YUAN') and points_per_unit is not null and points_per_unit &gt; 0))
+        and trigger_mode = 'MANUAL'
+        and status = 'ENABLED' and is_deleted = 0
+        and (effective_from is null or effective_from &lt;= now())
+        and (effective_to is null or effective_to &gt;= now())
+        and (dept_ids is null or json_length(dept_ids) = 0
+             or (#{deptId} is not null and json_contains(dept_ids, cast(#{deptId} as json))))
+        and (card_type_ids is null or json_length(card_type_ids) = 0
+             or (#{cardTypeId} is not null and json_contains(card_type_ids, cast(#{cardTypeId} as json))))
+    </sql>
+
+    <select id="selectManualFixedRules" resultMap="PointsRuleResult">
+        select * from xhbs_points_rule
+        where <include refid="manualFixedRuleWhere"/>
+          and direction = #{direction}
+          and (total_limit is null or used_count &lt; total_limit)
+          and (direction &lt;&gt; 'ADD' or budget_points is null
+               or used_points + coalesce(fixed_points, points_per_unit) &lt;= budget_points)
+        order by sort_order asc, id asc
+    </select>
+
+    <select id="selectManualFixedRuleForUpdate" resultMap="PointsRuleResult">
+        select * from xhbs_points_rule
+        where <include refid="manualFixedRuleWhere"/>
+          and id = #{ruleId}
+        limit 1 for update
+    </select>
+
+    <select id="selectRuleList" resultMap="PointsRuleResult">
+        select * from xhbs_points_rule
+        where is_deleted = 0
+        <if test="ruleName != null and ruleName != ''">
+            and (rule_name like concat('%', #{ruleName}, '%')
+                 or rule_code like concat('%', #{ruleName}, '%'))
+        </if>
+        <if test="direction != null and direction != ''">
+            and direction = #{direction}
+        </if>
+        <if test="implementationStatus != null and implementationStatus != ''">
+            and implementation_status = #{implementationStatus}
+        </if>
+        order by sort_order asc, id asc
+    </select>
+
+    <select id="selectRuleById" resultMap="PointsRuleResult">
+        select * from xhbs_points_rule where id = #{id} and is_deleted = 0 limit 1
+    </select>
+
+    <select id="selectEnabledByRuleCodeForUpdate" resultMap="PointsRuleResult">
+        select * from xhbs_points_rule
+        where rule_code = #{ruleCode} and status = 'ENABLED' and is_deleted = 0
+          and (effective_from is null or effective_from &lt;= now())
+          and (effective_to is null or effective_to &gt;= now())
+          and (dept_ids is null or json_length(dept_ids) = 0
+               or (#{deptId} is not null and json_contains(dept_ids, cast(#{deptId} as json))))
+          and (card_type_ids is null or json_length(card_type_ids) = 0
+               or (#{cardTypeId} is not null and json_contains(card_type_ids, cast(#{cardTypeId} as json))))
+        limit 1 for update
+    </select>
+
+    <select id="countRuleCode" resultType="int">
+        select count(*) from xhbs_points_rule
+        where rule_code = #{ruleCode}
+        <if test="excludeId != null">and id != #{excludeId}</if>
+    </select>
+
+    <insert id="insertRule" parameterType="com.xhbookstore.system.domain.member.PointsRule"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into xhbs_points_rule (
+            rule_code, rule_name, scene_code, rule_source, implementation_status,
+            direction, trigger_mode, trigger_event, calculation_mode,
+            fixed_points, points_per_unit, unit_type,
+            manual_points_editable, member_day_enabled, member_day_days, member_day_multiplier,
+            effective_from, effective_to, member_limit, total_limit, budget_points,
+            max_points_per_order, require_biz_order, require_evidence, exclude_bulk_purchase,
+            freeze_days, status, sort_order, remark,
+            operator_user_id, operator_name, operation_time
+        ) values (
+            #{ruleCode}, #{ruleName}, #{sceneCode}, #{ruleSource}, #{implementationStatus},
+            #{direction}, #{triggerMode}, #{triggerEvent}, #{calculationMode},
+            #{fixedPoints}, #{pointsPerUnit}, #{unitType},
+            #{manualPointsEditable}, #{memberDayEnabled}, #{memberDayDays}, #{memberDayMultiplier},
+            #{effectiveFrom}, #{effectiveTo}, #{memberLimit}, #{totalLimit}, #{budgetPoints},
+            #{maxPointsPerOrder}, #{requireBizOrder}, #{requireEvidence}, #{excludeBulkPurchase},
+            #{freezeDays}, #{status}, #{sortOrder}, #{remark},
+            #{operatorUserId}, #{operatorName}, now()
+        )
+    </insert>
+
+    <update id="updateRule" parameterType="com.xhbookstore.system.domain.member.PointsRule">
+        update xhbs_points_rule
+        set rule_name = #{ruleName},
+            scene_code = #{sceneCode},
+            rule_source = #{ruleSource},
+            implementation_status = #{implementationStatus},
+            direction = #{direction},
+            trigger_mode = #{triggerMode},
+            trigger_event = #{triggerEvent},
+            calculation_mode = #{calculationMode},
+            fixed_points = #{fixedPoints},
+            points_per_unit = #{pointsPerUnit},
+            unit_type = #{unitType},
+            manual_points_editable = #{manualPointsEditable},
+            member_day_enabled = #{memberDayEnabled},
+            member_day_days = #{memberDayDays},
+            member_day_multiplier = #{memberDayMultiplier},
+            effective_from = #{effectiveFrom},
+            effective_to = #{effectiveTo},
+            member_limit = #{memberLimit},
+            total_limit = #{totalLimit},
+            budget_points = #{budgetPoints},
+            max_points_per_order = #{maxPointsPerOrder},
+            require_biz_order = #{requireBizOrder},
+            require_evidence = #{requireEvidence},
+            exclude_bulk_purchase = #{excludeBulkPurchase},
+            freeze_days = #{freezeDays},
+            status = #{status},
+            sort_order = #{sortOrder},
+            remark = #{remark},
+            operator_user_id = #{operatorUserId},
+            operator_name = #{operatorName},
+            operation_time = now(),
+            lock_version = lock_version + 1,
+            updated_at = now()
+        where id = #{id} and is_deleted = 0
+    </update>
+
+    <select id="countPointsOrdersByRuleId" resultType="int">
+        select count(*) from xhbs_points_order where rule_id = #{ruleId}
+    </select>
+
+    <update id="logicalDeleteRule">
+        update xhbs_points_rule
+        set is_deleted = 1,
+            status = 'DISABLED',
+            operator_user_id = #{operatorUserId},
+            operator_name = #{operatorName},
+            operation_time = now(),
+            lock_version = lock_version + 1,
+            updated_at = now()
+        where id = #{id} and is_deleted = 0
+    </update>
+
+    <update id="updateRulePoints">
+        update xhbs_points_rule
+        set fixed_points = #{fixedPoints},
+            points_per_unit = #{pointsPerUnit},
+            operator_user_id = #{operatorUserId},
+            operator_name = #{operatorName},
+            operation_time = now(),
+            lock_version = lock_version + 1,
+            updated_at = now()
+        where id = #{id} and is_deleted = 0
+    </update>
+</mapper>

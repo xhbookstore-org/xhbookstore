@@ -49,6 +49,16 @@ export function addPoints(memberId, data) {
   return request({ url: '/member/' + memberId + '/points', method: 'post', data: data })
 }
 
+// Selectable fixed points rules for a member
+export function listPointsRules(memberId, direction) {
+  return request({ url: '/member/' + memberId + '/points/rules', method: 'get', params: { direction } })
+}
+
+// Add or deduct points by a server-side rule
+export function adjustPoints(memberId, data) {
+  return request({ url: '/member/' + memberId + '/points/adjust', method: 'post', data: data })
+}
+
 // Member cards
 export function getMemberCards(memberId) {
   return request({ url: '/member/card/member/' + memberId, method: 'get' })

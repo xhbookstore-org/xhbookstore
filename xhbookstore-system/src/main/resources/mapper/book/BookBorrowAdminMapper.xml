@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.book.BookBorrowAdminMapper">
+
+    <resultMap id="BorrowRecordResult" type="com.xhbookstore.system.domain.book.BookBorrowRecord">
+        <id property="id" column="id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="memberId" column="member_id"/>
+        <result property="memberName" column="member_name"/>
+        <result property="memberCardNo" column="member_card_no"/>
+        <result property="memberPhone" column="member_phone"/>
+        <result property="cardTypeName" column="card_type_name"/>
+        <result property="validDate" column="valid_date"/>
+        <result property="totalBookCount" column="total_book_count"/>
+        <result property="borrowStatus" column="borrow_status"/>
+        <result property="borrowTime" column="borrow_time"/>
+        <result property="lastReturnTime" column="last_return_time"/>
+        <result property="remark" column="remark"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="lastStaffName" column="last_staff_name"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="BorrowAdminDetailResult" type="com.xhbookstore.system.domain.book.BookBorrowAdminDetail">
+        <id property="id" column="id"/>
+        <result property="bookCode" column="book_code"/>
+        <result property="bookName" column="book_name"/>
+        <result property="borrowQty" column="borrow_qty"/>
+        <result property="borrowStatus" column="borrow_status"/>
+        <result property="borrowTime" column="borrow_time"/>
+        <result property="returnTime" column="return_time"/>
+        <result property="handleTime" column="handle_time"/>
+        <result property="lastStaffName" column="last_staff_name"/>
+        <result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="recordSelect">
+        select o.id, o.order_no, o.member_id, o.member_name, o.member_card_no, o.member_phone,
+               coalesce(nullif(o.member_card_type_name, ''), ct.type_name) as card_type_name,
+               coalesce(o.member_valid_date, m.valid_date) as valid_date,
+               (select count(1) from book_borrow_detail dc
+                where dc.borrow_order_id = o.id and dc.is_del = 0) as total_book_count,
+               o.borrow_status,
+               o.borrow_time,
+               (select max(r.return_time) from book_return_detail r
+                where r.borrow_order_id = o.id and r.is_del = 0) as last_return_time,
+               o.remark, o.dept_id, sd.dept_name,
+               coalesce(nullif(o.last_staff_name, ''), o.first_staff_name) as last_staff_name,
+               o.updated_at
+        from book_borrow_order o
+        left join member m on m.id = o.member_id
+        left join util_card_type ct on ct.id = m.card_type_id and ct.is_del = 0
+        left join sys_dept sd on sd.dept_id = o.dept_id
+    </sql>
+
+    <sql id="recordWhere">
+        where o.is_del = 0
+        <if test="id != null">and o.id = #{id}</if>
+        <if test="orderNo != null and orderNo != ''">
+            and o.order_no like concat('%', #{orderNo}, '%')
+        </if>
+        <if test="memberPhone != null and memberPhone != ''">
+            and o.member_phone like concat('%', #{memberPhone}, '%')
+        </if>
+        <if test="memberName != null and memberName != ''">
+            and o.member_name like concat('%', #{memberName}, '%')
+        </if>
+        <if test="memberCardNo != null and memberCardNo != ''">
+            and o.member_card_no like concat('%', #{memberCardNo}, '%')
+        </if>
+        <if test="borrowStatus != null">and o.borrow_status = #{borrowStatus}</if>
+        <if test="deptId != null">and o.dept_id = #{deptId}</if>
+        <if test="lastStaffName != null and lastStaffName != ''">
+            and (o.last_staff_name like concat('%', #{lastStaffName}, '%')
+                 or o.first_staff_name like concat('%', #{lastStaffName}, '%'))
+        </if>
+        <if test="bookCode != null and bookCode != ''">
+            and exists (select 1 from book_borrow_detail d
+                        where d.borrow_order_id = o.id and d.is_del = 0
+                          and d.book_code like concat('%', #{bookCode}, '%'))
+        </if>
+        <if test="bookName != null and bookName != ''">
+            and exists (select 1 from book_borrow_detail d
+                        where d.borrow_order_id = o.id and d.is_del = 0
+                          and d.book_name like concat('%', #{bookName}, '%'))
+        </if>
+        <if test="handlingType == 'BORROW'">
+            and exists (select 1 from book_borrow_detail d
+                        where d.borrow_order_id = o.id and d.is_del = 0 and d.borrow_status = 1)
+        </if>
+        <if test="handlingType == 'RETURN'">
+            and exists (select 1 from book_return_detail r
+                        where r.borrow_order_id = o.id and r.is_del = 0)
+        </if>
+        <if test="handlingType == 'PURCHASE'">
+            and exists (select 1 from dd_book_purchase_order p
+                        where p.borrow_order_id = o.id and p.is_del = 0 and p.order_status = 1)
+        </if>
+        <if test="params.beginTime != null and params.beginTime != ''">
+            and o.borrow_time &gt;= #{params.beginTime}
+        </if>
+        <if test="params.endTime != null and params.endTime != ''">
+            and o.borrow_time &lt; date_add(#{params.endTime}, interval 1 day)
+        </if>
+        ${params.dataScope}
+    </sql>
+
+    <select id="selectOrderList" resultMap="BorrowRecordResult">
+        <include refid="recordSelect"/>
+        <include refid="recordWhere"/>
+        order by o.borrow_time desc, o.id desc
+    </select>
+
+    <select id="selectOrder" resultMap="BorrowRecordResult">
+        <include refid="recordSelect"/>
+        <include refid="recordWhere"/>
+        limit 1
+    </select>
+
+    <select id="selectDetails" resultMap="BorrowAdminDetailResult">
+        select d.id, d.book_code, d.book_name, d.borrow_qty, d.borrow_status, d.borrow_time,
+               max(r.return_time) as return_time,
+               case
+                   when d.borrow_status = 2 then max(r.return_time)
+                   when d.borrow_status = 5 then max(p.pay_time)
+                   else d.updated_at
+               end as handle_time,
+               coalesce(nullif(d.last_staff_name, ''), d.first_staff_name) as last_staff_name,
+               d.remark
+        from book_borrow_detail d
+        left join book_return_detail r on r.borrow_detail_id = d.id and r.is_del = 0
+        left join dd_book_purchase_order p on p.borrow_detail_id = d.id and p.is_del = 0 and p.order_status = 1
+        where d.borrow_order_id = #{borrowOrderId} and d.is_del = 0
+        group by d.id, d.book_code, d.book_name, d.borrow_qty, d.borrow_status, d.borrow_time,
+                 d.updated_at, d.last_staff_name, d.first_staff_name, d.remark
+        order by d.id asc
+    </select>
+
+    <select id="selectExportList" resultType="com.xhbookstore.system.domain.book.BookBorrowDetailExport">
+        select o.order_no as orderNo, d.id as detailId, d.borrow_time as borrowTime,
+               o.member_card_no as memberCardNo, o.member_name as memberName,
+               o.member_phone as memberPhone,
+               coalesce(nullif(o.member_card_type_name, ''), ct.type_name) as cardTypeName,
+               coalesce(o.member_valid_date, m.valid_date) as validDate,
+               d.book_code as bookCode, d.book_name as bookName, 1 as quantity,
+               case d.borrow_status when 1 then '借阅中' when 2 then '已归还'
+                    when 5 then '已转购' when 6 then '已遗失' when 7 then '已取消' else '未知' end as detailStatusName,
+               (select max(r.return_time) from book_return_detail r
+                where r.borrow_detail_id = d.id and r.is_del = 0) as returnTime,
+               case
+                   when d.borrow_status = 2 then (select max(r.return_time) from book_return_detail r
+                                                   where r.borrow_detail_id = d.id and r.is_del = 0)
+                   when d.borrow_status = 5 then (select max(p.pay_time) from dd_book_purchase_order p
+                                                   where p.borrow_detail_id = d.id and p.is_del = 0 and p.order_status = 1)
+                   else d.updated_at
+               end as handleTime,
+               sd.dept_name as deptName,
+               coalesce(nullif(d.last_staff_name, ''), d.first_staff_name) as lastStaffName,
+               coalesce(nullif(d.remark, ''), o.remark) as remark
+        from book_borrow_order o
+        inner join book_borrow_detail d on d.borrow_order_id = o.id and d.is_del = 0
+        left join member m on m.id = o.member_id
+        left join util_card_type ct on ct.id = m.card_type_id and ct.is_del = 0
+        left join sys_dept sd on sd.dept_id = o.dept_id
+        <include refid="recordWhere"/>
+        order by o.borrow_time desc, o.id desc, d.id asc
+    </select>
+</mapper>

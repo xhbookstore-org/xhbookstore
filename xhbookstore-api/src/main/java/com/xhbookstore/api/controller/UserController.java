@@ -215,6 +215,7 @@ public class UserController {
         data.put("detail", detail);
         data.put("item", buildBorrowItem(order, detail));
         data.put("returns", filterReturns(returns, detail.getId()));
+        data.put("images", bookBorrowService.selectImagesByDetailId(detail.getId()));
         return ApiResponse.success(data);
     }
 
@@ -307,7 +308,7 @@ public class UserController {
         item.put("borrowDetailId", d.getId());
         item.put("orderNo", d.getBorrowOrderNo());
         item.put("memberId", d.getMemberId());
-        item.put("bookId", d.getBookId());
+        item.put("bookCode", d.getBookCode());
         item.put("bookName", d.getBookName());
         item.put("borrowStatus", d.getBorrowStatus() != null ? d.getBorrowStatus() : 0);
         item.put("borrowQty", d.getBorrowQty() != null ? d.getBorrowQty() : 0);

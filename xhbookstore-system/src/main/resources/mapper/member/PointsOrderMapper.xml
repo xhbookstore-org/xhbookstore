@@ -28,6 +28,17 @@
         <result property="appId" column="app_id"/>
         <result property="orginPoints" column="orgin_points"/>
         <result property="afterPoints" column="after_points"/>
+        <result property="ruleId" column="rule_id"/>
+        <result property="ruleCode" column="rule_code"/>
+        <result property="ruleName" column="rule_name"/>
+        <result property="direction" column="direction"/>
+        <result property="triggerMode" column="trigger_mode"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="operationTime" column="operation_time"/>
+        <result property="orderStatus" column="order_status"/>
+        <result property="availabilityStatus" column="availability_status"/>
+        <result property="balanceBucket" column="balance_bucket"/>
+        <result property="availableAt" column="available_at"/>
     </resultMap>
 
     <insert id="insertPointsOrder" parameterType="com.xhbookstore.system.domain.member.PointsOrder" useGeneratedKeys="true" keyProperty="id">
@@ -36,15 +47,179 @@
             amount, description, type, custom_args, completed_time,
             order_time, client_ip, item_id, item_name, price,
             discounted_price, operation_device, created_at, updated_at,
-            is_del, amount_type, app_id, orgin_points, after_points
+            is_del, amount_type, app_id, orgin_points, after_points,
+            rule_code, rule_name, scene_code, operation_kind, direction,
+            trigger_mode, base_points, business_type, business_order_no, business_key,
+            operator_type, operator_name, operation_time, order_status, idempotency_key
         ) values (
             #{orderNumber}, #{openId}, #{cardNo}, #{memberId}, #{appOrderNumber},
             #{amount}, #{description}, #{type}, #{customArgs}, now(),
             now(), #{clientIp}, #{itemId}, #{itemName}, #{price},
             #{discountedPrice}, #{operationDevice}, now(), now(),
-            #{isDel}, #{amountType}, #{appId}, #{orginPoints}, #{afterPoints}
+            #{isDel}, #{amountType}, #{appId}, #{orginPoints}, #{afterPoints},
+            'LEGACY', '手工积分', 'MANUAL_POINTS', 'NORMAL',
+            case when #{amount} &lt; 0 then 'DEDUCT' else 'ADD' end,
+            'MANUAL', abs(#{amount}), 'MANUAL_POINTS', #{orderNumber}, concat('POINTS_ORDER:', #{orderNumber}),
+            'STAFF', substring_index(#{customArgs}, ':', -1), now(), 'SUCCESS', concat('POINTS_ORDER:', #{orderNumber})
         )
     </insert>
+
+    <insert id="insertManualRulePointsOrder" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        insert into xhbs_points_order (
+            order_number, open_id, card_no, member_id, app_order_number,
+            amount, description, type, custom_args, completed_time,
+            order_time, client_ip, item_id, item_name, price,
+            discounted_price, operation_device, created_at, updated_at,
+            is_del, amount_type, app_id, orgin_points, after_points,
+            rule_id, rule_code, rule_name, scene_code, operation_kind,
+            direction, trigger_mode, trigger_event, calculation_mode,
+            base_points, multiplier, balance_bucket, before_frozen_points,
+            after_frozen_points, availability_status, business_type,
+            business_order_no, business_key, operator_type, operator_user_id,
+            operator_name, operation_time, order_status, idempotency_key,
+            calculation_snapshot
+        ) values (
+            #{orderNumber}, #{openId}, #{cardNo}, #{memberId}, '',
+            #{amount}, #{description}, 1, concat('operator:', #{operatorName}), now(),
+            now(), '127.0.0.1', '', '', #{points},
+            #{points}, #{operationDevice}, now(), now(),
+            0, 2, '', #{beforePoints}, #{afterPoints},
+            #{ruleId}, #{ruleCode}, #{ruleName}, #{sceneCode}, 'NORMAL',
+            #{direction}, 'MANUAL', #{triggerEvent}, 'FIXED',
+            #{points}, 1.000, 'AVAILABLE', 0,
+            0, 'AVAILABLE', 'MANUAL_POINTS',
+            #{orderNumber}, concat('MANUAL_POINTS:', #{orderNumber}), 'STAFF', #{operatorUserId},
+            #{operatorName}, now(), 'SUCCESS', concat('MANUAL_POINTS:', #{orderNumber}),
+            #{calculationSnapshot}
+        )
+    </insert>
+
+    <insert id="insertRulePointsOrder" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        insert into xhbs_points_order (
+            order_number, open_id, card_no, member_id, app_order_number,
+            amount, description, type, custom_args, completed_time,
+            order_time, client_ip, item_id, item_name, price,
+            discounted_price, operation_device, created_at, updated_at,
+            is_del, amount_type, app_id, orgin_points, after_points,
+            rule_id, rule_code, rule_name, scene_code, operation_kind,
+            direction, trigger_mode, trigger_event, calculation_mode,
+            base_quantity, base_points, multiplier, balance_bucket,
+            before_frozen_points, after_frozen_points, availability_status,
+            business_type, business_order_no, business_key,
+            operator_type, operator_name, operation_time, order_status,
+            idempotency_key, calculation_snapshot
+        ) values (
+            #{orderNumber}, #{openId}, #{cardNo}, #{memberId}, '',
+            #{amount}, #{description}, 1, '', now(),
+            now(), '127.0.0.1', '', '', #{amount},
+            #{amount}, 'SYSTEM', now(), now(),
+            0, 2, '', #{beforePoints}, #{afterPoints},
+            #{ruleId}, #{ruleCode}, #{ruleName}, #{sceneCode}, 'NORMAL',
+            'ADD', 'AUTO', #{triggerEvent}, #{calculationMode},
+            #{baseQuantity}, #{basePoints}, 1.000, 'AVAILABLE',
+            0, 0, 'AVAILABLE',
+            #{businessType}, #{businessOrderNo}, #{businessKey},
+            'SYSTEM', 'SYSTEM', now(), 'SUCCESS',
+            #{idempotencyKey}, #{calculationSnapshot}
+        )
+    </insert>
+
+    <insert id="insertFrozenCardPointsOrder" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        insert into xhbs_points_order (
+            order_number, open_id, card_no, member_id, app_order_number,
+            amount, description, type, custom_args, completed_time, order_time,
+            client_ip, item_id, item_name, price, discounted_price, operation_device,
+            created_at, updated_at, is_del, amount_type, app_id, orgin_points, after_points,
+            rule_id, rule_code, rule_name, scene_code, operation_kind, direction,
+            trigger_mode, trigger_event, calculation_mode, base_points, multiplier,
+            balance_bucket, before_frozen_points, after_frozen_points, availability_status,
+            available_at, business_type, business_order_no, business_key, operator_type,
+            operator_name, operation_time, order_status, idempotency_key, calculation_snapshot
+        ) values (
+            #{orderNumber}, '', #{cardNo}, #{memberId}, '',
+            #{points}, #{description}, 1, '', now(), now(),
+            '127.0.0.1', '', '', #{points}, #{points}, 'SYSTEM',
+            now(), now(), 0, 2, '', #{currentPoints}, #{currentPoints},
+            #{ruleId}, #{ruleCode}, #{ruleName}, #{sceneCode}, 'NORMAL', 'ADD',
+            'AUTO', #{triggerEvent}, 'FIXED', #{points}, 1.000,
+            'FROZEN', 0, #{points}, 'FROZEN',
+            #{availableAt}, 'MEMBER_CARD', #{saleOrderNo}, #{businessKey}, 'SYSTEM',
+            'SYSTEM', now(), 'SUCCESS', #{businessKey}, #{calculationSnapshot}
+        )
+    </insert>
+
+    <insert id="insertFrozenCardReversalOrder" parameterType="map" useGeneratedKeys="true" keyProperty="id">
+        insert into xhbs_points_order (
+            order_number, open_id, card_no, member_id, app_order_number,
+            amount, description, type, custom_args, completed_time, order_time,
+            client_ip, item_id, item_name, price, discounted_price, operation_device,
+            created_at, updated_at, is_del, amount_type, app_id, orgin_points, after_points,
+            rule_id, rule_code, rule_name, scene_code, operation_kind, direction,
+            trigger_mode, trigger_event, calculation_mode, base_points, multiplier,
+            balance_bucket, before_frozen_points, after_frozen_points, availability_status,
+            business_type, business_order_no, business_key, original_order_no,
+            operator_type, operator_name, operation_time, order_status, idempotency_key,
+            calculation_snapshot
+        ) values (
+            #{orderNumber}, '', #{cardNo}, #{memberId}, '',
+            -#{points}, #{description}, 2, '', now(), now(),
+            '127.0.0.1', '', '', #{points}, #{points}, 'SYSTEM',
+            now(), now(), 0, 2, '', #{currentPoints}, #{currentPoints},
+            #{ruleId}, #{ruleCode}, #{ruleName}, #{sceneCode}, 'REVERSAL', 'DEDUCT',
+            'AUTO', #{triggerEvent}, 'FIXED', #{points}, 1.000,
+            'FROZEN', #{points}, 0, 'CANCELLED',
+            'MEMBER_CARD_REFUND', #{refundOrderNo}, #{businessKey}, #{originalOrderNo},
+            'SYSTEM', 'SYSTEM', now(), 'SUCCESS', #{businessKey},
+            #{calculationSnapshot}
+        )
+    </insert>
+
+    <select id="selectPendingCardLifecycleIds" resultType="long">
+        select p.id
+        from xhbs_points_order p
+        join member_card c on c.sale_order_no = p.business_order_no and c.is_del = 0
+        where p.business_type = 'MEMBER_CARD' and p.availability_status = 'FROZEN'
+          and (c.status = 3 or p.available_at &lt;= now())
+        order by case when c.status = 3 then 0 else 1 end, p.id
+        limit #{limit}
+    </select>
+
+    <select id="selectCardLifecycleForUpdate" resultType="map">
+        select p.id, p.order_number, p.member_id, p.card_no, p.amount, p.rule_code,
+               p.business_order_no, p.available_at, p.availability_status,
+               c.status card_status, c.refund_order_no, c.card_type_id, c.card_type_name, c.dept_id
+        from xhbs_points_order p
+        join member_card c on c.sale_order_no = p.business_order_no and c.is_del = 0
+        where p.id = #{id}
+        for update
+    </select>
+
+    <update id="markFrozenAvailable">
+        update xhbs_points_order
+        set balance_bucket = 'AVAILABLE', availability_status = 'AVAILABLE',
+            before_frozen_points = amount, after_frozen_points = 0,
+            unfrozen_at = now(), updated_at = now()
+        where id = #{id} and availability_status = 'FROZEN'
+    </update>
+
+    <update id="markFrozenCancelled">
+        update xhbs_points_order
+        set availability_status = 'CANCELLED', order_status = 'REVERSED',
+            before_frozen_points = amount, after_frozen_points = 0,
+            unfrozen_at = now(), updated_at = now()
+        where id = #{id} and availability_status = 'FROZEN'
+    </update>
+
+    <select id="selectByBusinessKey" resultType="map">
+        select id, order_number, amount, order_status
+        from xhbs_points_order where business_key = #{businessKey} limit 1
+    </select>
+
+    <select id="countSuccessByRuleAndMember" resultType="int">
+        select count(1) from xhbs_points_order
+        where rule_id = #{ruleId} and member_id = #{memberId}
+          and order_status = 'SUCCESS' and is_del = 0
+    </select>
 
     <select id="selectByOrderNumber" parameterType="String" resultMap="PointsOrderResult">
         select * from xhbs_points_order where order_number = #{orderNumber}

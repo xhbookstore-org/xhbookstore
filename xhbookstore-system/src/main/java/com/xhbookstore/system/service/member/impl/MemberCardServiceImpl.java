@@ -28,6 +28,7 @@ import com.xhbookstore.system.mapper.member.MemberCardRefundOrderMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.service.member.IMemberCardService;
 import com.xhbookstore.system.service.member.IMemberCodeTokenService;
+import com.xhbookstore.system.service.member.IPointsCardLifecycleService;
 
 @Service
 public class MemberCardServiceImpl implements IMemberCardService {
@@ -44,6 +45,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
     @Autowired private MemberCardOrderMapper orderMapper;
     @Autowired private MemberCardRefundOrderMapper refundOrderMapper;
     @Autowired private MemberCardBizLogMapper logMapper;
+    @Autowired private IPointsCardLifecycleService pointsCardLifecycleService;
 
     @Override
     @Transactional
@@ -130,6 +132,8 @@ public class MemberCardServiceImpl implements IMemberCardService {
         }
         writeLog(card, "BUY_CARD", null, card, "sale_order,member_card",
                 "Buy member card", staffId, staffName, "STAFF_MP", null);
+        Map<String, Object> pointsResult = pointsCardLifecycleService.grantFrozenCardPoints(
+                member, card, active != null);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("saleOrderNo", orderNo);
@@ -146,6 +150,7 @@ public class MemberCardServiceImpl implements IMemberCardService {
         data.put("expectedEffectiveAt", millis(effectiveAt));
         data.put("expectedExpiredAt", millis(expiredAt));
         data.put("remark", remark);
+        data.put("points", pointsResult);
         return AjaxResult.success(data);
     }
 

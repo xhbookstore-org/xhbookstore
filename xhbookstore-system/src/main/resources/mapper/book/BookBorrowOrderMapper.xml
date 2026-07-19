@@ -9,6 +9,8 @@
         <result property="memberCardNo" column="member_card_no"/>
         <result property="memberName" column="member_name"/>
         <result property="memberPhone" column="member_phone"/>
+        <result property="memberCardTypeName" column="member_card_type_name"/>
+        <result property="memberValidDate" column="member_valid_date"/>
         <result property="totalBookCount" column="total_book_count"/>
         <result property="isFinished" column="is_finished"/>
         <result property="borrowStatus" column="borrow_status"/>
@@ -28,9 +30,11 @@
 
     <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookBorrowOrder" useGeneratedKeys="true" keyProperty="id">
         insert into book_borrow_order (order_no, member_id, member_card_no, member_name, member_phone,
+            member_card_type_name, member_valid_date,
             total_book_count, is_finished, borrow_status, borrow_time, expected_return_time,
             remark, dept_id, first_staff_id, first_staff_name, last_staff_id, last_staff_name, created_at)
         values (#{orderNo}, #{memberId}, #{memberCardNo}, #{memberName}, #{memberPhone},
+            #{memberCardTypeName}, #{memberValidDate},
             #{totalBookCount}, 0, 1, now(), #{expectedReturnTime},
             #{remark}, #{deptId}, #{firstStaffId}, #{firstStaffName}, #{firstStaffId}, #{firstStaffName}, now())
     </insert>
