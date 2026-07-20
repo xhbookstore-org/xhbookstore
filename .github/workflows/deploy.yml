@@ -11,12 +11,7 @@ on:
         options: [staging, prod]
         default: staging
 
-env:
-  JAVA_VERSION: '17'
-  NODE_VERSION: '18'
-
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -24,175 +19,76 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # ======================== Build ========================
-  build:
-    name: Build All Modules
+  prepare:
+    name: Prepare deployment
     runs-on: ubuntu-latest
-    timeout-minutes: 20
     outputs:
-      version: ${{ steps.version.outputs.tag }}
-      environment: ${{ steps.target.outputs.environment }}
-      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
+      version: ${{ steps.metadata.outputs.version }}
+      environment: ${{ steps.metadata.outputs.environment }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Select deployment environment
-        id: target
+      - name: Generate deployment metadata
+        id: metadata
         shell: bash
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+            environment="${{ inputs.environment }}"
           else
-            echo "environment=staging" >> "$GITHUB_OUTPUT"
+            environment="staging"
           fi
+          timestamp="$(date +%Y%m%d_%H%M%S)"
+          short_sha="${GITHUB_SHA::7}"
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+          echo "version=v${timestamp}_${short_sha}_r${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
-      - name: Generate version tag
-        id: version
-        run: |
-          TS=$(date +%Y%m%d_%H%M%S)
-          SHORT_SHA="${GITHUB_SHA::7}"
-          echo "tag=v${TS}_${SHORT_SHA}_r${{ github.run_number }}" >> "$GITHUB_OUTPUT"
-
-      - name: Setup Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-
-      - name: Setup Node ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Verify toolchain
-        run: |
-          java -version
-          mvn --version
-          node --version
-          npm --version
-
-      # ---------- Maven: admin & api ----------
-      - name: Test and build Admin and API JARs
-        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am --batch-mode
-
-      # ---------- npm: ui ----------
-      - name: Install UI dependencies
-        run: |
-          cd xhbookstore-ui
-          npm install --no-audit --no-fund
-
-      - name: Build UI for target environment
-        shell: bash
-        run: |
-          cd xhbookstore-ui
-          if [[ "${{ steps.target.outputs.environment }}" == "prod" ]]; then
-            npm run build:prod
-          else
-            npm run build:stage
-          fi
-
-      - name: Package UI
-        run: cd xhbookstore-ui/dist && zip -qr ../dist.zip .
-
-      - name: Assemble deployment package
-        run: |
-          mkdir -p deployment-package
-          cp xhbookstore-admin/target/xhbookstore-admin.jar deployment-package/
-          cp xhbookstore-api/target/xhbookstore-api.jar deployment-package/
-          cp xhbookstore-ui/dist.zip deployment-package/
-          cp deploy/deploy.sh deployment-package/
-          chmod +x deployment-package/deploy.sh
-          sha256sum deployment-package/* > deployment-package/SHA256SUMS
-
-      - name: Upload deployment package
-        id: artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-package-${{ steps.version.outputs.tag }}
-          path: deployment-package/
-          retention-days: 14
-
-  # ======================== Deploy Staging ========================
   deploy-staging:
-    name: Deploy → Staging (152.136.127.168)
-    needs: build
-    if: needs.build.outputs.environment == 'staging'
+    name: Build and deploy to staging
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'staging'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment:
       name: staging
       url: http://152.136.127.168
     steps:
-      - name: Download package on server and deploy
+      - name: Pull source, build and deploy on staging server
         uses: appleboy/ssh-action@v1.2.5
         env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_URL: https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${{ needs.build.outputs.artifact_id }}/zip
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
         with:
           host: 152.136.127.168
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GH_TOKEN,ARTIFACT_URL,VERSION
+          command_timeout: 18m
+          envs: VERSION,COMMIT_SHA
           script: |
-            set -eu
-            SOURCE_DIR=/tmp/deploy/$VERSION
-            rm -rf "$SOURCE_DIR"
-            mkdir -p "$SOURCE_DIR"
-            curl --fail --location --silent --show-error --retry 3 \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "$ARTIFACT_URL" --output "$SOURCE_DIR/package.zip"
-            unzip -q "$SOURCE_DIR/package.zip" -d "$SOURCE_DIR"
-            rm "$SOURCE_DIR/package.zip"
-            cd "$SOURCE_DIR"
-            sha256sum --check SHA256SUMS
-            install -m 0755 "$SOURCE_DIR/deploy.sh" /www/server/java/projects/deploy.sh
             DEPLOY_ENV=staging \
-            DEPLOY_SOURCE_DIR="$SOURCE_DIR" \
-            bash /www/server/java/projects/deploy.sh install "$VERSION"
+            bash /www/server/java/projects/source-deploy.sh staging "$VERSION" "$COMMIT_SHA"
 
-  # ======================== Deploy Prod ========================
   deploy-prod:
-    name: Deploy → Prod
-    needs: build
-    if: needs.build.outputs.environment == 'prod'
+    name: Build and deploy to production
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'prod'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     environment:
       name: prod
       url: https://cfxinhua.cn
     steps:
-      - name: Download package on server and deploy
+      - name: Pull source, build and deploy on production server
         uses: appleboy/ssh-action@v1.2.5
         env:
-          GH_TOKEN: ${{ github.token }}
-          ARTIFACT_URL: https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${{ needs.build.outputs.artifact_id }}/zip
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GH_TOKEN,ARTIFACT_URL,VERSION
+          command_timeout: 18m
+          envs: VERSION,COMMIT_SHA
           script: |
-            set -eu
-            SOURCE_DIR=/tmp/deploy/$VERSION
-            rm -rf "$SOURCE_DIR"
-            mkdir -p "$SOURCE_DIR"
-            curl --fail --location --silent --show-error --retry 3 \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer $GH_TOKEN" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "$ARTIFACT_URL" --output "$SOURCE_DIR/package.zip"
-            unzip -q "$SOURCE_DIR/package.zip" -d "$SOURCE_DIR"
-            rm "$SOURCE_DIR/package.zip"
-            cd "$SOURCE_DIR"
-            sha256sum --check SHA256SUMS
-            install -m 0755 "$SOURCE_DIR/deploy.sh" /www/server/java/projects/deploy.sh
             DEPLOY_ENV=prod \
-            DEPLOY_SOURCE_DIR="$SOURCE_DIR" \
-            bash /www/server/java/projects/deploy.sh install "$VERSION"
+            bash /www/server/java/projects/source-deploy.sh prod "$VERSION" "$COMMIT_SHA"
 
       - name: Verify public endpoints
         run: |
