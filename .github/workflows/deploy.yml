@@ -77,7 +77,7 @@ jobs:
       - name: Install UI dependencies
         run: |
           cd xhbookstore-ui
-          npm ci
+          npm install --no-audit --no-fund
 
       - name: Build UI for target environment
         shell: bash
