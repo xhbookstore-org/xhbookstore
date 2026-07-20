@@ -1,4 +1,4 @@
-name: Build & Deploy
+name: Build and Deploy
 
 on:
   push:
@@ -15,6 +15,13 @@ env:
   JAVA_VERSION: '17'
   NODE_VERSION: '18'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
 jobs:
   # ======================== Build ========================
   build:
@@ -23,14 +30,26 @@ jobs:
     timeout-minutes: 20
     outputs:
       version: ${{ steps.version.outputs.tag }}
+      environment: ${{ steps.target.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select deployment environment
+        id: target
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "environment=staging" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Generate version tag
         id: version
         run: |
           TS=$(date +%Y%m%d_%H%M%S)
-          echo "tag=v${TS}_r${{ github.run_number }}" >> $GITHUB_OUTPUT
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "tag=v${TS}_${SHORT_SHA}_r${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -51,65 +70,61 @@ jobs:
           npm --version
 
       # ---------- Maven: admin & api ----------
-      - name: Build Admin & API JARs
-        run: mvn package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true --batch-mode 2>&1
+      - name: Test and build Admin and API JARs
+        run: mvn clean package -pl xhbookstore-admin,xhbookstore-api -am --batch-mode
 
       # ---------- npm: ui ----------
-      - name: Build UI (staging)
+      - name: Install UI dependencies
         run: |
           cd xhbookstore-ui
-          npm install
-          npm run build:stage
+          npm ci
+
+      - name: Build UI for target environment
+        shell: bash
+        run: |
+          cd xhbookstore-ui
+          if [[ "${{ steps.target.outputs.environment }}" == "prod" ]]; then
+            npm run build:prod
+          else
+            npm run build:stage
+          fi
 
       - name: Package UI
-        run: cd xhbookstore-ui && zip -r dist.zip dist/
+        run: cd xhbookstore-ui/dist && zip -qr ../dist.zip .
 
-      # ---------- Publish Release ----------
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
-          body: |
-            🔨 触发方式: ${{ github.event_name }}
-            📝 提交: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
-          files: |
-            xhbookstore-admin/target/xhbookstore-admin.jar
-            xhbookstore-api/target/xhbookstore-api.jar
-            xhbookstore-ui/dist.zip
-          fail_on_unmatched_files: false
+      - name: Assemble deployment package
+        run: |
+          mkdir -p deployment-package
+          cp xhbookstore-admin/target/xhbookstore-admin.jar deployment-package/
+          cp xhbookstore-api/target/xhbookstore-api.jar deployment-package/
+          cp xhbookstore-ui/dist.zip deployment-package/
+          cp deploy/deploy.sh deployment-package/
+          chmod +x deployment-package/deploy.sh
+          sha256sum deployment-package/* > deployment-package/SHA256SUMS
 
-      # ---------- Artifacts (for deploy jobs) ----------
-      - name: Upload admin JAR artifact
+      - name: Upload deployment package
         uses: actions/upload-artifact@v4
         with:
-          name: admin-jar
-          path: xhbookstore-admin/target/xhbookstore-admin.jar
-
-      - name: Upload api JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-jar
-          path: xhbookstore-api/target/xhbookstore-api.jar
-
-      - name: Upload UI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-zip
-          path: xhbookstore-ui/dist.zip
+          name: deployment-package-${{ steps.version.outputs.tag }}
+          path: deployment-package/
+          retention-days: 14
 
   # ======================== Deploy Staging ========================
   deploy-staging:
     name: Deploy → Staging (152.136.127.168)
     needs: build
-    if: success()
+    if: needs.build.outputs.environment == 'staging'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: staging
       url: http://152.136.127.168
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
+        with:
+          name: deployment-package-${{ needs.build.outputs.version }}
+          path: release
 
       - name: SCP upload to server
         uses: appleboy/scp-action@v0
@@ -117,8 +132,8 @@ jobs:
           host: 152.136.127.168
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "admin-jar/xhbookstore-admin.jar,api-jar/xhbookstore-api.jar,ui-zip/dist.zip"
-          target: /tmp/deploy/
+          source: "release/*"
+          target: /tmp/deploy/${{ needs.build.outputs.version }}/
           strip_components: 1
           rm: true
 
@@ -128,32 +143,39 @@ jobs:
           host: 152.136.127.168
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_ENV
           script: |
-            export DEPLOY_ENV=staging
+            cd /tmp/deploy/${{ needs.build.outputs.version }}
+            sha256sum --check SHA256SUMS
+            install -m 0755 /tmp/deploy/${{ needs.build.outputs.version }}/deploy.sh /www/server/java/projects/deploy.sh
+            DEPLOY_ENV=staging \
+            DEPLOY_SOURCE_DIR=/tmp/deploy/${{ needs.build.outputs.version }} \
             bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
 
   # ======================== Deploy Prod ========================
   deploy-prod:
     name: Deploy → Prod
     needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
+    if: needs.build.outputs.environment == 'prod'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: prod
-      url: http://<prod-server>
+      url: https://cfxinhua.cn
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
+        with:
+          name: deployment-package-${{ needs.build.outputs.version }}
+          path: release
 
       - name: SCP upload to prod server
         uses: appleboy/scp-action@v0
         with:
           host: ${{ secrets.PROD_HOST }}
-          username: root
+          username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "admin-jar/xhbookstore-admin.jar,api-jar/xhbookstore-api.jar,ui-zip/dist.zip"
-          target: /tmp/deploy/
+          source: "release/*"
+          target: /tmp/deploy/${{ needs.build.outputs.version }}/
           strip_components: 1
           rm: true
 
@@ -161,9 +183,18 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.PROD_HOST }}
-          username: root
+          username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_ENV
           script: |
-            export DEPLOY_ENV=prod
+            cd /tmp/deploy/${{ needs.build.outputs.version }}
+            sha256sum --check SHA256SUMS
+            install -m 0755 /tmp/deploy/${{ needs.build.outputs.version }}/deploy.sh /www/server/java/projects/deploy.sh
+            DEPLOY_ENV=prod \
+            DEPLOY_SOURCE_DIR=/tmp/deploy/${{ needs.build.outputs.version }} \
             bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
+
+      - name: Verify public endpoints
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --output /dev/null https://cfxinhua.cn/
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --output /dev/null https://cfxinhua.cn/prod-api/getInfo
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --output /dev/null https://cfxinhua.cn/api/mp/v1/stores
