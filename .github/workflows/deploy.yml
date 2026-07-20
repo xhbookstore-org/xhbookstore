@@ -127,7 +127,7 @@ jobs:
           path: release
 
       - name: SCP upload to server
-        uses: appleboy/scp-action@v0
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: 152.136.127.168
           username: root
@@ -138,7 +138,7 @@ jobs:
           rm: true
 
       - name: Apply deployment (versioned)
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: 152.136.127.168
           username: root
@@ -169,7 +169,7 @@ jobs:
           path: release
 
       - name: SCP upload to prod server
-        uses: appleboy/scp-action@v0
+        uses: appleboy/scp-action@v1.0.0
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ubuntu
@@ -180,7 +180,7 @@ jobs:
           rm: true
 
       - name: Apply deployment (versioned)
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ubuntu
