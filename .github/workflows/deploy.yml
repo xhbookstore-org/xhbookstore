@@ -16,6 +16,7 @@ env:
   NODE_VERSION: '18'
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -31,6 +32,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.tag }}
       environment: ${{ steps.target.outputs.environment }}
+      artifact_id: ${{ steps.artifact.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -103,6 +105,7 @@ jobs:
           sha256sum deployment-package/* > deployment-package/SHA256SUMS
 
       - name: Upload deployment package
+        id: artifact
         uses: actions/upload-artifact@v4
         with:
           name: deployment-package-${{ steps.version.outputs.tag }}
@@ -120,36 +123,35 @@ jobs:
       name: staging
       url: http://152.136.127.168
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: deployment-package-${{ needs.build.outputs.version }}
-          path: release
-
-      - name: SCP upload to server
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: 152.136.127.168
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "release/*"
-          target: /tmp/deploy/${{ needs.build.outputs.version }}/
-          strip_components: 1
-          rm: true
-
-      - name: Apply deployment (versioned)
+      - name: Download package on server and deploy
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_URL: https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${{ needs.build.outputs.artifact_id }}/zip
+          VERSION: ${{ needs.build.outputs.version }}
         with:
           host: 152.136.127.168
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: GH_TOKEN,ARTIFACT_URL,VERSION
           script: |
-            cd /tmp/deploy/${{ needs.build.outputs.version }}
+            set -eu
+            SOURCE_DIR=/tmp/deploy/$VERSION
+            rm -rf "$SOURCE_DIR"
+            mkdir -p "$SOURCE_DIR"
+            curl --fail --location --silent --show-error --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$ARTIFACT_URL" --output "$SOURCE_DIR/package.zip"
+            unzip -q "$SOURCE_DIR/package.zip" -d "$SOURCE_DIR"
+            rm "$SOURCE_DIR/package.zip"
+            cd "$SOURCE_DIR"
             sha256sum --check SHA256SUMS
-            install -m 0755 /tmp/deploy/${{ needs.build.outputs.version }}/deploy.sh /www/server/java/projects/deploy.sh
+            install -m 0755 "$SOURCE_DIR/deploy.sh" /www/server/java/projects/deploy.sh
             DEPLOY_ENV=staging \
-            DEPLOY_SOURCE_DIR=/tmp/deploy/${{ needs.build.outputs.version }} \
-            bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
+            DEPLOY_SOURCE_DIR="$SOURCE_DIR" \
+            bash /www/server/java/projects/deploy.sh install "$VERSION"
 
   # ======================== Deploy Prod ========================
   deploy-prod:
@@ -162,36 +164,35 @@ jobs:
       name: prod
       url: https://cfxinhua.cn
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: deployment-package-${{ needs.build.outputs.version }}
-          path: release
-
-      - name: SCP upload to prod server
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: ubuntu
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "release/*"
-          target: /tmp/deploy/${{ needs.build.outputs.version }}/
-          strip_components: 1
-          rm: true
-
-      - name: Apply deployment (versioned)
+      - name: Download package on server and deploy
         uses: appleboy/ssh-action@v1.2.5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_URL: https://api.github.com/repos/${{ github.repository }}/actions/artifacts/${{ needs.build.outputs.artifact_id }}/zip
+          VERSION: ${{ needs.build.outputs.version }}
         with:
           host: ${{ secrets.PROD_HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: GH_TOKEN,ARTIFACT_URL,VERSION
           script: |
-            cd /tmp/deploy/${{ needs.build.outputs.version }}
+            set -eu
+            SOURCE_DIR=/tmp/deploy/$VERSION
+            rm -rf "$SOURCE_DIR"
+            mkdir -p "$SOURCE_DIR"
+            curl --fail --location --silent --show-error --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$ARTIFACT_URL" --output "$SOURCE_DIR/package.zip"
+            unzip -q "$SOURCE_DIR/package.zip" -d "$SOURCE_DIR"
+            rm "$SOURCE_DIR/package.zip"
+            cd "$SOURCE_DIR"
             sha256sum --check SHA256SUMS
-            install -m 0755 /tmp/deploy/${{ needs.build.outputs.version }}/deploy.sh /www/server/java/projects/deploy.sh
+            install -m 0755 "$SOURCE_DIR/deploy.sh" /www/server/java/projects/deploy.sh
             DEPLOY_ENV=prod \
-            DEPLOY_SOURCE_DIR=/tmp/deploy/${{ needs.build.outputs.version }} \
-            bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
+            DEPLOY_SOURCE_DIR="$SOURCE_DIR" \
+            bash /www/server/java/projects/deploy.sh install "$VERSION"
 
       - name: Verify public endpoints
         run: |
