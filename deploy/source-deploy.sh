@@ -10,7 +10,8 @@ DEPLOY_ROOT="${DEPLOY_ROOT:-/www/server/java/projects}"
 SOURCE_ROOT="${SOURCE_ROOT:-/www/server/java/source}"
 REPO_DIR="${REPO_DIR:-${SOURCE_ROOT}/xhbookstore}"
 PACKAGE_DIR="/tmp/deploy/${VERSION}"
-REPOSITORY="${REPOSITORY:-https://github.com/xhbookstore-org/xhbookstore.git}"
+REPOSITORY="${REPOSITORY:-}"
+STAGING_MIRROR_KEY="${STAGING_MIRROR_KEY:-${HOME}/.ssh/xhbookstore_staging_git}"
 
 log() {
   printf '[%s] %s\n' "$(date '+%F %T')" "$*"
@@ -24,6 +25,19 @@ die() {
 [[ "$ENVIRONMENT" == "staging" || "$ENVIRONMENT" == "prod" ]] || die "environment must be staging or prod"
 [[ "$VERSION" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid version: ${VERSION}"
 [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || die "invalid commit SHA: ${COMMIT_SHA}"
+
+if [[ -z "$REPOSITORY" ]]; then
+  if [[ "$ENVIRONMENT" == "prod" ]]; then
+    REPOSITORY="ssh://root@152.136.127.168/xhbookstore"
+  else
+    REPOSITORY="https://github.com/xhbookstore-org/xhbookstore.git"
+  fi
+fi
+if [[ "$REPOSITORY" == ssh://root@152.136.127.168/* ]]; then
+  [[ -f "$STAGING_MIRROR_KEY" ]] || die "missing staging mirror key: ${STAGING_MIRROR_KEY}"
+  export GIT_SSH_COMMAND="ssh -i ${STAGING_MIRROR_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+fi
+
 command -v git >/dev/null || die "git is required"
 command -v java >/dev/null || die "Java is required"
 command -v mvn >/dev/null || die "Maven is required"
