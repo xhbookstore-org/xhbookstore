@@ -42,10 +42,14 @@ fi
 
 cd "$REPO_DIR"
 git remote set-url origin "$REPOSITORY"
-log "fetching commit ${COMMIT_SHA}"
-git fetch --depth=1 origin "$COMMIT_SHA"
-git checkout --detach --force FETCH_HEAD
-git reset --hard FETCH_HEAD
+if git cat-file -e "${COMMIT_SHA}^{commit}" 2>/dev/null; then
+  log "commit ${COMMIT_SHA} already exists locally"
+else
+  log "fetching commit ${COMMIT_SHA}"
+  git fetch --depth=1 origin "$COMMIT_SHA"
+fi
+git checkout --detach --force "$COMMIT_SHA"
+git reset --hard "$COMMIT_SHA"
 
 log "testing and building Java modules"
 MAVEN_OPTS="${MAVEN_OPTS:--Xms128m -Xmx768m}" \
