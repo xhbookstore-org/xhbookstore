@@ -9,8 +9,8 @@ COMMIT_SHA="${3:-}"
 DEPLOY_ROOT="${DEPLOY_ROOT:-/www/server/java/projects}"
 SOURCE_ROOT="${SOURCE_ROOT:-/www/server/java/source}"
 REPO_DIR="${REPO_DIR:-${SOURCE_ROOT}/xhbookstore}"
+SOURCE_ARCHIVES="${SOURCE_ARCHIVES:-${SOURCE_ROOT}/archives}"
 PACKAGE_DIR="/tmp/deploy/${VERSION}"
-REPOSITORY="${REPOSITORY:-}"
 STAGING_MIRROR_KEY="${STAGING_MIRROR_KEY:-${HOME}/.ssh/xhbookstore_staging_git}"
 
 log() {
@@ -26,44 +26,59 @@ die() {
 [[ "$VERSION" =~ ^[A-Za-z0-9._-]+$ ]] || die "invalid version: ${VERSION}"
 [[ "$COMMIT_SHA" =~ ^[0-9a-f]{40}$ ]] || die "invalid commit SHA: ${COMMIT_SHA}"
 
-if [[ -z "$REPOSITORY" ]]; then
-  if [[ "$ENVIRONMENT" == "prod" ]]; then
-    REPOSITORY="ssh://root@152.136.127.168/xhbookstore"
-  else
-    REPOSITORY="https://github.com/xhbookstore-org/xhbookstore.git"
-  fi
-fi
-if [[ "$REPOSITORY" == ssh://root@152.136.127.168/* ]]; then
+if [[ "$ENVIRONMENT" == "prod" ]]; then
   [[ -f "$STAGING_MIRROR_KEY" ]] || die "missing staging mirror key: ${STAGING_MIRROR_KEY}"
-  export GIT_SSH_COMMAND="ssh -i ${STAGING_MIRROR_KEY} -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
 fi
 
-command -v git >/dev/null || die "git is required"
+command -v curl >/dev/null || die "curl is required"
+command -v rsync >/dev/null || die "rsync is required"
+command -v tar >/dev/null || die "tar is required"
 command -v java >/dev/null || die "Java is required"
 command -v mvn >/dev/null || die "Maven is required"
 command -v node >/dev/null || die "Node.js is required"
 command -v npm >/dev/null || die "npm is required"
 command -v zip >/dev/null || die "zip is required"
 
-mkdir -p "$DEPLOY_ROOT" "$SOURCE_ROOT"
+mkdir -p "$DEPLOY_ROOT" "$SOURCE_ROOT" "$SOURCE_ARCHIVES"
 exec 8>"${DEPLOY_ROOT}/.source-deploy.lock"
 flock -n 8 || die "another source build or deployment is running"
 
-if [[ ! -d "${REPO_DIR}/.git" ]]; then
-  log "cloning repository"
-  git clone --depth=1 --no-checkout "$REPOSITORY" "$REPO_DIR"
+archive_file="${SOURCE_ARCHIVES}/${COMMIT_SHA}.tar.gz"
+archive_partial="${archive_file}.part"
+
+if [[ ! -f "$archive_file" ]]; then
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    log "downloading source archive ${COMMIT_SHA} from GitHub"
+    for attempt in 1 2 3 4 5; do
+      if curl --fail --location --silent --show-error \
+        --connect-timeout 15 --max-time 600 --retry 3 --retry-all-errors \
+        --continue-at - \
+        "https://codeload.github.com/xhbookstore-org/xhbookstore/tar.gz/${COMMIT_SHA}" \
+        --output "$archive_partial"; then
+        break
+      fi
+      log "source download attempt ${attempt} failed; resuming"
+    done
+  else
+    log "downloading validated source archive ${COMMIT_SHA} from staging"
+    ssh -i "$STAGING_MIRROR_KEY" \
+      -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+      root@152.136.127.168 "get ${COMMIT_SHA}" >"$archive_partial"
+  fi
+
+  tar -tzf "$archive_partial" >/dev/null || die "invalid or unavailable source archive for ${COMMIT_SHA}"
+  mv "$archive_partial" "$archive_file"
 fi
 
+extract_dir="${SOURCE_ROOT}/extract-${COMMIT_SHA}"
+rm -rf "$extract_dir"
+mkdir -p "$extract_dir" "$REPO_DIR"
+tar -xzf "$archive_file" --strip-components=1 -C "$extract_dir"
+rsync -a --delete --exclude 'xhbookstore-ui/node_modules/' "${extract_dir}/" "${REPO_DIR}/"
+rm -rf "$extract_dir"
+printf '%s\n' "$COMMIT_SHA" >"${REPO_DIR}/.deployment-commit"
+
 cd "$REPO_DIR"
-git remote set-url origin "$REPOSITORY"
-if git cat-file -e "${COMMIT_SHA}^{commit}" 2>/dev/null; then
-  log "commit ${COMMIT_SHA} already exists locally"
-else
-  log "fetching commit ${COMMIT_SHA}"
-  git fetch --depth=1 origin "$COMMIT_SHA"
-fi
-git checkout --detach --force "$COMMIT_SHA"
-git reset --hard "$COMMIT_SHA"
 
 log "testing and building Java modules"
 MAVEN_OPTS="${MAVEN_OPTS:--Xms128m -Xmx768m}" \
