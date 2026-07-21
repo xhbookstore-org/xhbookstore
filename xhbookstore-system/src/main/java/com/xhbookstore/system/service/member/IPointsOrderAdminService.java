@@ -7,6 +7,7 @@ import com.xhbookstore.system.domain.member.PointsRule;
 
 public interface IPointsOrderAdminService {
     List<PointsOrderRecord> selectList(PointsOrderRecord query);
+    List<PointsOrderRecord> selectExportList(PointsOrderRecord query);
     Map<String, Object> selectDetail(PointsOrderRecord query);
     List<PointsRule> selectRuleOptions();
 }

@@ -83,6 +83,7 @@ class PointsRuleServiceImplTest {
         assertThat(captor.getValue().getTotalLimit()).isNull();
         assertThat(captor.getValue().getMaxPointsPerOrder()).isNull();
         assertThat(captor.getValue().getBudgetPoints()).isNull();
+        assertThat(captor.getValue().getPointsValidDays()).isEqualTo(360);
     }
 
     @Test

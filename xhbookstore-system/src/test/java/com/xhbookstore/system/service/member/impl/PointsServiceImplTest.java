@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Map;
+import java.util.Date;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.PointsRule;
+import com.xhbookstore.system.domain.member.PointsUserIntoBillDetail;
 import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.mapper.member.PointsOrderMapper;
@@ -64,6 +66,10 @@ class PointsServiceImplTest {
                 .containsEntry("beforePoints", 30)
                 .containsEntry("afterPoints", 50);
         verify(pointsRuleMapper).incrementUsage(7L, 20);
+        ArgumentCaptor<PointsUserIntoBillDetail> bill = ArgumentCaptor.forClass(PointsUserIntoBillDetail.class);
+        verify(intoBillMapper).insertIntoBill(bill.capture());
+        long validForDays = (bill.getValue().getExpiredTime().getTime() - new Date().getTime()) / 86_400_000L;
+        assertThat(validForDays).isBetween(359L, 360L);
     }
 
     @Test
@@ -165,6 +171,7 @@ class PointsServiceImplTest {
         rule.setTriggerEvent("BORROW_COMPLETED");
         rule.setCalculationMode("PER_ITEM");
         rule.setPointsPerUnit(10);
+        rule.setPointsValidDays(360);
         return rule;
     }
 

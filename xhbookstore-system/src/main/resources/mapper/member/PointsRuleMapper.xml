@@ -31,6 +31,7 @@
         <result property="requireEvidence" column="require_evidence"/>
         <result property="excludeBulkPurchase" column="exclude_bulk_purchase"/>
         <result property="freezeDays" column="freeze_days"/>
+        <result property="pointsValidDays" column="points_valid_days"/>
         <result property="status" column="status"/>
         <result property="remark" column="remark"/>
         <result property="sortOrder" column="sort_order"/>
@@ -146,7 +147,7 @@
             manual_points_editable, member_day_enabled, member_day_days, member_day_multiplier,
             effective_from, effective_to, member_limit, total_limit, budget_points,
             max_points_per_order, require_biz_order, require_evidence, exclude_bulk_purchase,
-            freeze_days, status, sort_order, remark,
+            freeze_days, points_valid_days, status, sort_order, remark,
             operator_user_id, operator_name, operation_time
         ) values (
             #{ruleCode}, #{ruleName}, #{sceneCode}, #{ruleSource}, #{implementationStatus},
@@ -155,7 +156,7 @@
             #{manualPointsEditable}, #{memberDayEnabled}, #{memberDayDays}, #{memberDayMultiplier},
             #{effectiveFrom}, #{effectiveTo}, #{memberLimit}, #{totalLimit}, #{budgetPoints},
             #{maxPointsPerOrder}, #{requireBizOrder}, #{requireEvidence}, #{excludeBulkPurchase},
-            #{freezeDays}, #{status}, #{sortOrder}, #{remark},
+            #{freezeDays}, #{pointsValidDays}, #{status}, #{sortOrder}, #{remark},
             #{operatorUserId}, #{operatorName}, now()
         )
     </insert>
@@ -187,6 +188,7 @@
             require_evidence = #{requireEvidence},
             exclude_bulk_purchase = #{excludeBulkPurchase},
             freeze_days = #{freezeDays},
+            points_valid_days = #{pointsValidDays},
             status = #{status},
             sort_order = #{sortOrder},
             remark = #{remark},

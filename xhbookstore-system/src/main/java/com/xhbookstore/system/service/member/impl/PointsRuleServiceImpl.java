@@ -170,8 +170,12 @@ public class PointsRuleServiceImpl implements IPointsRuleService {
         rule.setRequireEvidence(flag(rule.getRequireEvidence()));
         rule.setExcludeBulkPurchase(flag(rule.getExcludeBulkPurchase()));
         rule.setFreezeDays(defaultNonNegative(rule.getFreezeDays()));
+        rule.setPointsValidDays(rule.getPointsValidDays() == null ? 360 : rule.getPointsValidDays());
         rule.setSortOrder(defaultNonNegative(rule.getSortOrder()));
         if (rule.getFreezeDays() > 0 && !"ADD".equals(rule.getDirection())) return "只有获取积分规则可以设置冻结天数";
+        if (rule.getPointsValidDays() <= 0 || rule.getPointsValidDays() > 3650) {
+            return "积分有效期必须在1-3650天之间";
+        }
         if (rule.getEffectiveFrom() != null && rule.getEffectiveTo() != null
                 && rule.getEffectiveFrom().after(rule.getEffectiveTo())) return "生效时间不能晚于结束时间";
         if (negative(rule.getMemberLimit()) || negative(rule.getTotalLimit()) || negative(rule.getMaxPointsPerOrder())) {

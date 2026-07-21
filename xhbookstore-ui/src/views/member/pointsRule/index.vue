@@ -53,6 +53,7 @@
       </el-table-column>
       <el-table-column label="积分规则" min-width="145"><template slot-scope="scope">{{ pointsValueText(scope.row) }}</template></el-table-column>
       <el-table-column label="冻结" width="70" align="center"><template slot-scope="scope">{{ scope.row.freezeDays ? scope.row.freezeDays + '天' : '—' }}</template></el-table-column>
+      <el-table-column label="积分有效期" width="105" align="center"><template slot-scope="scope">{{ (scope.row.pointsValidDays || 360) + '天' }}</template></el-table-column>
       <el-table-column label="运行状态" width="90" align="center">
         <template slot-scope="scope"><el-tag size="mini" :type="scope.row.status === 'ENABLED' ? 'success' : 'info'">{{ ruleStatusText(scope.row.status) }}</el-tag></template>
       </el-table-column>
@@ -91,6 +92,7 @@
           <el-col v-if="form.calculationMode === 'FIXED'" :span="8"><el-form-item label="固定积分"><el-input-number v-model="form.fixedPoints" :min="1" :max="999999" :precision="0" /></el-form-item></el-col>
           <el-col v-if="form.calculationMode === 'PER_ITEM' || form.calculationMode === 'PER_YUAN'" :span="8"><el-form-item label="单位积分"><el-input-number v-model="form.pointsPerUnit" :min="1" :max="999999" :precision="0" /></el-form-item></el-col>
           <el-col :span="8"><el-form-item label="冻结天数"><el-input-number v-model="form.freezeDays" :min="0" :max="3650" :precision="0" /></el-form-item></el-col>
+          <el-col :span="8"><el-form-item label="积分有效期" prop="pointsValidDays"><el-input-number v-model="form.pointsValidDays" :min="1" :max="3650" :precision="0" /></el-form-item></el-col>
         </el-row>
 
         <el-divider content-position="left">适用策略</el-divider>
@@ -170,7 +172,7 @@ export default {
         memberDayDays: '[6,16,26]', memberDayMultiplier: 2, effectiveFrom: null, effectiveTo: null,
         memberLimit: null, totalLimit: null, budgetPoints: null, maxPointsPerOrder: null,
         requireBizOrder: 1, requireEvidence: 0, excludeBulkPurchase: 0,
-        freezeDays: 0, status: 'DRAFT', sortOrder: 0, remark: ''
+        freezeDays: 0, pointsValidDays: 360, status: 'DRAFT', sortOrder: 0, remark: ''
       }
       this.$nextTick(() => { if (this.$refs.form) this.$refs.form.clearValidate() })
     },
@@ -190,6 +192,7 @@ export default {
     loadRule(id, viewOnly) {
       getPointsRule(id).then(response => {
         this.form = response.data
+        this.form.pointsValidDays = this.form.pointsValidDays || 360
         this.form.memberDayDays = this.form.memberDayDays || '[6,16,26]'
         this.viewOnly = viewOnly
         this.dialogTitle = viewOnly ? '查看积分规则' : '修改积分规则'

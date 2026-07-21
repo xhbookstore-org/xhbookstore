@@ -34,6 +34,8 @@ public class PointsRule {
     private Integer requireEvidence;
     private Integer excludeBulkPurchase;
     private Integer freezeDays;
+    /** 本规则发放积分的有效天数，从实际入账/解冻时间起计算。 */
+    private Integer pointsValidDays;
     private String status;
     private String remark;
     private Integer sortOrder;
@@ -101,6 +103,8 @@ public class PointsRule {
     public void setExcludeBulkPurchase(Integer excludeBulkPurchase) { this.excludeBulkPurchase = excludeBulkPurchase; }
     public Integer getFreezeDays() { return freezeDays; }
     public void setFreezeDays(Integer freezeDays) { this.freezeDays = freezeDays; }
+    public Integer getPointsValidDays() { return pointsValidDays; }
+    public void setPointsValidDays(Integer pointsValidDays) { this.pointsValidDays = pointsValidDays; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getRemark() { return remark; }

@@ -63,6 +63,9 @@
     </el-form>
 
     <el-row :gutter="10" class="mb8">
+      <el-col :span="1.5">
+        <el-button type="warning" plain icon="el-icon-download" size="mini" @click="handleExport" v-hasPermi="['member:points:export']">导出</el-button>
+      </el-col>
       <right-toolbar :showSearch.sync="showSearch" @queryTable="getList" />
     </el-row>
 
@@ -233,6 +236,16 @@ export default {
       this.dateRange = []
       this.resetForm('queryForm')
       this.handleQuery()
+    },
+    handleExport() {
+      const params = { ...this.queryParams }
+      if (this.dateRange && this.dateRange.length === 2) {
+        params.beginTime = this.dateRange[0]
+        params.endTime = this.dateRange[1]
+      }
+      delete params.pageNum
+      delete params.pageSize
+      this.download('member/points/order/export', params, `积分流水_${this.parseTime(new Date(), '{y}{m}{d}_{h}{i}{s}')}.xlsx`)
     },
     handleDetail(row) {
       this.detailVisible = true

@@ -187,7 +187,9 @@
     <select id="selectCardLifecycleForUpdate" resultType="map">
         select p.id, p.order_number, p.member_id, p.card_no, p.amount, p.rule_code,
                p.business_order_no, p.available_at, p.availability_status,
-               c.status card_status, c.refund_order_no, c.card_type_id, c.card_type_name, c.dept_id
+               c.status card_status, c.refund_order_no, c.card_type_id, c.card_type_name, c.dept_id,
+               coalesce(cast(json_unquote(json_extract(p.calculation_snapshot, '$.pointsValidDays')) as unsigned), 360)
+                   as points_valid_days
         from xhbs_points_order p
         join member_card c on c.sale_order_no = p.business_order_no and c.is_del = 0
         where p.id = #{id}

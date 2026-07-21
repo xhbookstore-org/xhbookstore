@@ -13,6 +13,8 @@
         <result property="validDate" column="valid_date"/>
         <result property="totalBookCount" column="total_book_count"/>
         <result property="borrowStatus" column="borrow_status"/>
+        <result property="returnStatus" column="return_status"/>
+        <result property="points" column="points"/>
         <result property="borrowTime" column="borrow_time"/>
         <result property="lastReturnTime" column="last_return_time"/>
         <result property="remark" column="remark"/>
@@ -42,6 +44,19 @@
                (select count(1) from book_borrow_detail dc
                 where dc.borrow_order_id = o.id and dc.is_del = 0) as total_book_count,
                o.borrow_status,
+               case
+                   when (select count(1) from book_return_detail rs
+                         where rs.borrow_order_id = o.id and rs.is_del = 0) = 0 then 'NOT_RETURNED'
+                   when (select count(distinct rs.borrow_detail_id) from book_return_detail rs
+                         where rs.borrow_order_id = o.id and rs.is_del = 0)
+                        &gt;= (select count(1) from book_borrow_detail ds
+                              where ds.borrow_order_id = o.id and ds.is_del = 0) then 'ALL_RETURNED'
+                   else 'PARTIAL_RETURNED'
+               end as return_status,
+               coalesce((select sum(p.amount) from xhbs_points_order p
+                         where p.business_type = 'BOOK_BORROW'
+                           and p.business_order_no = o.order_no
+                           and p.order_status = 'SUCCESS' and p.is_del = 0), 0) as points,
                o.borrow_time,
                (select max(r.return_time) from book_return_detail r
                 where r.borrow_order_id = o.id and r.is_del = 0) as last_return_time,

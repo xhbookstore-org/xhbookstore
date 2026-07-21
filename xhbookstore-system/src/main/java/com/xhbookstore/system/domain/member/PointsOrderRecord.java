@@ -4,28 +4,32 @@ import java.math.BigDecimal;
 import java.util.Date;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.xhbookstore.common.core.domain.BaseEntity;
+import com.xhbookstore.common.annotation.Excel;
 
 /** Admin 积分流水列表、详情及查询条件。 */
 public class PointsOrderRecord extends BaseEntity {
     private static final long serialVersionUID = 1L;
 
     private Integer id;
+    @Excel(name = "积分订单号", sort = 1, width = 24)
     private String orderNumber;
     private Integer memberId;
-    private String memberName;
-    private String memberNo;
-    private String memberPhone;
+    @Excel(name = "姓名", sort = 2) private String memberName;
+    @Excel(name = "会员编号", sort = 3, width = 16) private String memberNo;
+    @Excel(name = "手机号", sort = 4, width = 14) private String memberPhone;
     private Long deptId;
-    private String deptName;
-    private Integer amount;
-    private String description;
-    private Integer orginPoints;
-    private Integer afterPoints;
+    @Excel(name = "门店", sort = 14) private String deptName;
+    @Excel(name = "积分变化", sort = 7) private Integer amount;
+    @Excel(name = "备注", sort = 17, width = 28) private String description;
+    @Excel(name = "操作前积分", sort = 8) private Integer orginPoints;
+    @Excel(name = "操作后积分", sort = 9) private Integer afterPoints;
     private Long ruleId;
     private String ruleCode;
-    private String ruleName;
+    @Excel(name = "积分规则", sort = 5, width = 18) private String ruleName;
     private String sceneCode;
+    @Excel(name = "操作类型", sort = 11, readConverterExp = "NORMAL=正常入账/消费,REVERSAL=冲销,EXPIRATION=过期")
     private String operationKind;
+    @Excel(name = "积分方向", sort = 6, readConverterExp = "ADD=增加积分,DEDUCT=扣减积分")
     private String direction;
     private String triggerMode;
     private String triggerEvent;
@@ -37,17 +41,20 @@ public class PointsOrderRecord extends BaseEntity {
     private String balanceBucket;
     private Integer beforeFrozenPoints;
     private Integer afterFrozenPoints;
+    @Excel(name = "可用状态", sort = 10, readConverterExp = "AVAILABLE=可用,FROZEN=冻结中,CANCELLED=已取消")
     private String availabilityStatus;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") private Date availableAt;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") private Date unfrozenAt;
-    private String businessType;
-    private String businessOrderNo;
+    @Excel(name = "业务类型", sort = 12) private String businessType;
+    @Excel(name = "业务单号", sort = 13, width = 20) private String businessOrderNo;
     private String originalOrderNo;
     private String operatorType;
     private Long operatorUserId;
-    private String operatorName;
+    @Excel(name = "操作人", sort = 15) private String operatorName;
+    @Excel(name = "操作时间", sort = 16, width = 20, dateFormat = "yyyy-MM-dd HH:mm:ss")
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") private Date operationTime;
     private String operationDevice;
+    @Excel(name = "订单状态", sort = 18, readConverterExp = "SUCCESS=成功,REVERSED=已冲销,FAILED=失败")
     private String orderStatus;
     private String calculationSnapshot;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss") private Date createdAt;

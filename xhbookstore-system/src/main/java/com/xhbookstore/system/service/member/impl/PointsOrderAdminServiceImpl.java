@@ -29,6 +29,12 @@ public class PointsOrderAdminServiceImpl implements IPointsOrderAdminService {
     }
 
     @Override
+    @DataScope(deptAlias = "m", permission = "member:points:export")
+    public List<PointsOrderRecord> selectExportList(PointsOrderRecord query) {
+        return adminMapper.selectOrderList(query);
+    }
+
+    @Override
     @DataScope(deptAlias = "m", permission = "member:points:query")
     public Map<String, Object> selectDetail(PointsOrderRecord query) {
         PointsOrderRecord order = adminMapper.selectOrder(query);

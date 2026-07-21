@@ -91,6 +91,7 @@ public class PointsServiceImpl implements IPointsService {
         snapshot.put("pointsPerUnit", rule.getPointsPerUnit());
         snapshot.put("baseQuantity", detailCount);
         snapshot.put("points", points);
+        snapshot.put("pointsValidDays", validDays(rule));
 
         Map<String, Object> order = new LinkedHashMap<>();
         order.put("orderNumber", orderNumber);
@@ -118,8 +119,7 @@ public class PointsServiceImpl implements IPointsService {
             throw new IllegalStateException("Failed to create borrow points order");
         }
 
-        Calendar expiry = Calendar.getInstance();
-        expiry.add(Calendar.YEAR, 1);
+        Date expiry = expiryAfterDays(validDays(rule));
         PointsUserIntoBillDetail intoBill = new PointsUserIntoBillDetail();
         intoBill.setMemberId(memberId);
         intoBill.setPoints(points);
@@ -134,8 +134,8 @@ public class PointsServiceImpl implements IPointsService {
         intoBill.setAccountType(0);
         intoBill.setBillStatus(0);
         intoBill.setIsWhiteOrder(0);
-        intoBill.setExpiredTime(expiry.getTime());
-        intoBill.setExpiredTimestamp(expiry.getTimeInMillis());
+        intoBill.setExpiredTime(expiry);
+        intoBill.setExpiredTimestamp(expiry.getTime());
         intoBill.setIsDel(0);
         if (intoBillMapper.insertIntoBill(intoBill) != 1) {
             throw new IllegalStateException("Failed to create borrow points bill");
@@ -256,6 +256,7 @@ public class PointsServiceImpl implements IPointsService {
         snapshot.put("memberDayApplied", memberDayApplied);
         snapshot.put("multiplier", multiplier);
         snapshot.put("finalPoints", points);
+        snapshot.put("pointsValidDays", validDays(rule));
 
         Map<String, Object> order = new LinkedHashMap<>();
         order.put("orderNumber", orderNumber);
@@ -297,8 +298,7 @@ public class PointsServiceImpl implements IPointsService {
             outBill.setIsDel(0);
             if (outBillMapper.insertOutBill(outBill) != 1) throw new IllegalStateException("积分出账明细创建失败");
         } else {
-            Calendar expiry = Calendar.getInstance();
-            expiry.add(Calendar.YEAR, 1);
+            Date expiry = expiryAfterDays(validDays(rule));
             PointsUserIntoBillDetail intoBill = new PointsUserIntoBillDetail();
             intoBill.setMemberId(memberId);
             intoBill.setPoints(points);
@@ -313,8 +313,8 @@ public class PointsServiceImpl implements IPointsService {
             intoBill.setAccountType(0);
             intoBill.setBillStatus(0);
             intoBill.setIsWhiteOrder(0);
-            intoBill.setExpiredTime(expiry.getTime());
-            intoBill.setExpiredTimestamp(expiry.getTimeInMillis());
+            intoBill.setExpiredTime(expiry);
+            intoBill.setExpiredTimestamp(expiry.getTime());
             intoBill.setIsDel(0);
             if (intoBillMapper.insertIntoBill(intoBill) != 1) throw new IllegalStateException("积分入账明细创建失败");
         }
@@ -409,8 +409,9 @@ public class PointsServiceImpl implements IPointsService {
         intoBill.setAccountType(0);
         intoBill.setBillStatus(0);
         intoBill.setIsWhiteOrder(0);
-        intoBill.setExpiredTime(null);
-        intoBill.setExpiredTimestamp(0L);
+        Date expiry = expiryAfterDays(360);
+        intoBill.setExpiredTime(expiry);
+        intoBill.setExpiredTimestamp(expiry.getTime());
         intoBill.setIsDel(0);
         intoBillMapper.insertIntoBill(intoBill);
 
@@ -500,6 +501,17 @@ public class PointsServiceImpl implements IPointsService {
         String dateStr = sdf.format(new Date());
         int random = (int) (Math.random() * 900000) + 100000;
         return prefix + dateStr + random;
+    }
+
+    private int validDays(PointsRule rule) {
+        return rule.getPointsValidDays() == null || rule.getPointsValidDays() <= 0
+                ? 360 : rule.getPointsValidDays();
+    }
+
+    private Date expiryAfterDays(int days) {
+        Calendar expiry = Calendar.getInstance();
+        expiry.add(Calendar.DAY_OF_MONTH, days);
+        return expiry.getTime();
     }
 
     @Override

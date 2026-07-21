@@ -110,6 +110,12 @@
           <el-tag size="mini" :type="orderStatusTag(scope.row.borrowStatus)">{{ orderStatusText(scope.row.borrowStatus) }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="还书状态" width="100" align="center">
+        <template slot-scope="scope"><el-tag size="mini" :type="returnStatusTag(scope.row.returnStatus)">{{ returnStatusText(scope.row.returnStatus) }}</el-tag></template>
+      </el-table-column>
+      <el-table-column label="积分" prop="points" width="80" align="right">
+        <template slot-scope="scope"><span class="borrow-points">+{{ Number(scope.row.points || 0) }}</span></template>
+      </el-table-column>
       <el-table-column label="备注" prop="remark" min-width="140" :show-overflow-tooltip="true">
         <template slot-scope="scope">{{ scope.row.remark || '—' }}</template>
       </el-table-column>
@@ -150,6 +156,8 @@
         <el-descriptions-item label="借阅单号">{{ detailData.order.orderNo }}</el-descriptions-item>
         <el-descriptions-item label="借阅时间">{{ detailData.order.borrowTime }}</el-descriptions-item>
         <el-descriptions-item label="订单状态">{{ orderStatusText(detailData.order.borrowStatus) }}</el-descriptions-item>
+        <el-descriptions-item label="还书状态">{{ returnStatusText(detailData.order.returnStatus) }}</el-descriptions-item>
+        <el-descriptions-item label="积分"><span class="borrow-points">+{{ Number(detailData.order.points || 0) }}</span></el-descriptions-item>
         <el-descriptions-item label="门店">{{ detailData.order.deptName || '—' }}</el-descriptions-item>
         <el-descriptions-item label="姓名">{{ detailData.order.memberName || '—' }}</el-descriptions-item>
         <el-descriptions-item label="会员卡号">{{ detailData.order.memberCardNo }}</el-descriptions-item>
@@ -275,6 +283,12 @@ export default {
     },
     orderStatusTag(status) {
       return ({ 1: '', 2: 'warning', 3: 'success', 4: 'info' })[status] || 'info'
+    },
+    returnStatusText(status) {
+      return ({ NOT_RETURNED: '未还书', PARTIAL_RETURNED: '部分还书', ALL_RETURNED: '已全部还书' })[status] || '未知'
+    },
+    returnStatusTag(status) {
+      return ({ NOT_RETURNED: 'warning', PARTIAL_RETURNED: '', ALL_RETURNED: 'success' })[status] || 'info'
     }
   }
 }
@@ -283,6 +297,7 @@ export default {
 <style scoped>
 .detail-wrap { padding: 12px 24px; min-height: 70px; background: #fafafa; }
 .detail-title { margin: 20px 0 10px; }
+.borrow-points { color: #13ce66; font-weight: 600; }
 
 /*
  * Element UI 会在固定列中复制展开行，并用空白单元格盖住主表内容。

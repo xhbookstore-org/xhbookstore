@@ -61,6 +61,7 @@ public class PointsCardLifecycleServiceImpl implements IPointsCardLifecycleServi
         snapshot.put("saleOrderNo", card.getSaleOrderNo());
         snapshot.put("memberCardId", card.getId());
         snapshot.put("freezeDays", rule.getFreezeDays());
+        snapshot.put("pointsValidDays", validDays(rule));
         snapshot.put("points", points);
 
         Map<String, Object> order = new LinkedHashMap<>();
@@ -159,7 +160,7 @@ public class PointsCardLifecycleServiceImpl implements IPointsCardLifecycleServi
         if (memberMapper.updateMember(update) != 1) throw new IllegalStateException("积分解冻余额更新失败");
         if (pointsOrderMapper.markFrozenAvailable(id) != 1) throw new IllegalStateException("积分解冻状态更新失败");
         Calendar expiry = Calendar.getInstance();
-        expiry.add(Calendar.YEAR, 1);
+        expiry.add(Calendar.DAY_OF_MONTH, positiveOrDefault(row.get("points_valid_days"), 360));
         PointsUserIntoBillDetail bill = new PointsUserIntoBillDetail();
         bill.setMemberId(memberId);
         bill.setPoints(points);
@@ -196,5 +197,13 @@ public class PointsCardLifecycleServiceImpl implements IPointsCardLifecycleServi
     }
     private String text(Object value) { return value == null ? null : value.toString(); }
     private int integer(Object value) { return value == null ? 0 : Integer.parseInt(value.toString()); }
+    private int positiveOrDefault(Object value, int defaultValue) {
+        int number = integer(value);
+        return number > 0 ? number : defaultValue;
+    }
+    private int validDays(PointsRule rule) {
+        return rule.getPointsValidDays() == null || rule.getPointsValidDays() <= 0
+                ? 360 : rule.getPointsValidDays();
+    }
     private Long longValue(Object value) { return value == null ? null : Long.valueOf(value.toString()); }
 }

@@ -19,6 +19,10 @@ public class BookBorrowRecord extends BaseEntity {
     private Date validDate;
     private Integer totalBookCount;
     private Integer borrowStatus;
+    /** NOT_RETURNED / PARTIAL_RETURNED / ALL_RETURNED，按逐册归还明细汇总。 */
+    private String returnStatus;
+    /** 本借阅单已成功发放的积分合计。 */
+    private Integer points;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date borrowTime;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
@@ -55,6 +59,10 @@ public class BookBorrowRecord extends BaseEntity {
     public void setTotalBookCount(Integer totalBookCount) { this.totalBookCount = totalBookCount; }
     public Integer getBorrowStatus() { return borrowStatus; }
     public void setBorrowStatus(Integer borrowStatus) { this.borrowStatus = borrowStatus; }
+    public String getReturnStatus() { return returnStatus; }
+    public void setReturnStatus(String returnStatus) { this.returnStatus = returnStatus; }
+    public Integer getPoints() { return points; }
+    public void setPoints(Integer points) { this.points = points; }
     public Date getBorrowTime() { return borrowTime; }
     public void setBorrowTime(Date borrowTime) { this.borrowTime = borrowTime; }
     public Date getLastReturnTime() { return lastReturnTime; }
