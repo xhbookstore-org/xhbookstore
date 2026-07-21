@@ -16,7 +16,7 @@ const permission = {
   mutations: {
     SET_ROUTES: (state, routes) => {
       state.addRoutes = routes
-      state.routes = constantRoutes.concat(routes)
+      state.routes = routes
     },
     SET_DEFAULT_ROUTES: (state, routes) => {
       state.defaultRoutes = constantRoutes.concat(routes)
@@ -42,7 +42,7 @@ const permission = {
           const constantSidebarRoutes = filterSidebarRoutes(constantRoutes)
           rewriteRoutes.push({ path: '*', redirect: '/404', hidden: true })
           router.addRoutes(asyncRoutes)
-          commit('SET_ROUTES', rewriteRoutes)
+          commit('SET_ROUTES', constantSidebarRoutes.concat(rewriteRoutes))
           commit('SET_SIDEBAR_ROUTERS', constantSidebarRoutes.concat(sidebarRoutes))
           commit('SET_DEFAULT_ROUTES', sidebarRoutes)
           commit('SET_TOPBAR_ROUTES', sidebarRoutes)

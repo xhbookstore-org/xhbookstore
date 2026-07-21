@@ -81,7 +81,27 @@
       <el-table-column label="操作员工" prop="operatorName" width="100" />
       <el-table-column label="原因" prop="reason" min-width="160" :show-overflow-tooltip="true" />
       <el-table-column label="备注" prop="remark" min-width="150" :show-overflow-tooltip="true" />
+      <el-table-column label="操作" width="80" align="center" fixed="right">
+        <template slot-scope="scope">
+          <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)">查看</el-button>
+        </template>
+      </el-table-column>
     </el-table>
+
+    <el-dialog title="退卡详情" :visible.sync="detailVisible" width="680px" append-to-body>
+      <el-descriptions v-if="detailOrder" :column="2" border>
+        <el-descriptions-item label="退款单号">{{ detailOrder.refundOrderNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="会员编号">{{ detailOrder.memberNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="会员姓名">{{ detailOrder.memberName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="电话">{{ detailOrder.memberPhone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="卡类型">{{ detailOrder.cardTypeName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="退卡时间">{{ parseTime(detailOrder.refundTime) || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="退卡员工">{{ detailOrder.operatorName || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <div slot="footer">
+        <el-button @click="detailVisible = false">关闭</el-button>
+      </div>
+    </el-dialog>
 
     <pagination v-show="total>0" :total="total" :page.sync="queryParams.pageNum" :limit.sync="queryParams.pageSize" @pagination="getList" />
   </div>
@@ -100,6 +120,8 @@ export default {
       cardTypes: [],
       deptOptions: [],
       refundRange: [],
+      detailVisible: false,
+      detailOrder: null,
       queryParams: {
         pageNum: 1,
         pageSize: 10,
@@ -138,6 +160,10 @@ export default {
     handleQuery() {
       this.queryParams.pageNum = 1
       this.getList()
+    },
+    handleView(row) {
+      this.detailOrder = row
+      this.detailVisible = true
     },
     resetQuery() {
       this.refundRange = []

@@ -46,7 +46,9 @@ export default {
         matched = router.matched.filter(item => item.meta && item.meta.title)
       }
       // 判断是否为首页
-      if (!this.isDashboard(matched[0])) {
+      const permissions = this.$store.getters.permissions || []
+      const canViewDashboard = permissions.some(permission => permission === '*:*:*' || permission === 'dashboard:member:view')
+      if (canViewDashboard && !this.isDashboard(matched[0])) {
         matched = [{ path: "/index", meta: { title: "首页" } }].concat(matched)
       }
       this.levelList = matched.filter(item => item.meta && item.meta.title && item.meta.breadcrumb !== false)
