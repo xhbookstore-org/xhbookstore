@@ -10,7 +10,9 @@ public class BookReturnDetail {
     private String borrowOrderNo;
     private Long borrowDetailId;
     private Integer memberId;
+    /** Legacy compatibility only. */
     private Long bookId;
+    private String bookCode;
     private String bookName;
     private Integer returnQty;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
@@ -40,6 +42,8 @@ public class BookReturnDetail {
     public void setMemberId(Integer memberId) { this.memberId = memberId; }
     public Long getBookId() { return bookId; }
     public void setBookId(Long bookId) { this.bookId = bookId; }
+    public String getBookCode() { return bookCode; }
+    public void setBookCode(String bookCode) { this.bookCode = bookCode; }
     public String getBookName() { return bookName; }
     public void setBookName(String bookName) { this.bookName = bookName; }
     public Integer getReturnQty() { return returnQty; }

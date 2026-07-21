@@ -8,6 +8,7 @@
         <result property="borrowOrderNo" column="borrow_order_no"/>
         <result property="memberId" column="member_id"/>
         <result property="bookId" column="book_id"/>
+        <result property="bookCode" column="book_code"/>
         <result property="bookName" column="book_name"/>
         <result property="borrowQty" column="borrow_qty"/>
         <result property="returnedQty" column="returned_qty"/>
@@ -27,10 +28,10 @@
     </resultMap>
 
     <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookBorrowDetail" useGeneratedKeys="true" keyProperty="id">
-        insert into book_borrow_detail (borrow_order_id, borrow_order_no, member_id, book_id, book_name,
+        insert into book_borrow_detail (borrow_order_id, borrow_order_no, member_id, book_id, book_code, book_name,
             borrow_qty, returned_qty, purchase_qty, borrow_status, borrow_time,
             remark, first_staff_id, first_staff_name, last_staff_id, last_staff_name, created_at)
-        values (#{borrowOrderId}, #{borrowOrderNo}, #{memberId}, #{bookId}, #{bookName},
+        values (#{borrowOrderId}, #{borrowOrderNo}, #{memberId}, #{bookId}, #{bookCode}, #{bookName},
             #{borrowQty}, 0, 0, 1, now(),
             #{remark}, #{firstStaffId}, #{firstStaffName}, #{firstStaffId}, #{firstStaffName}, now())
     </insert>
@@ -72,7 +73,7 @@
 
     <select id="selectPage" resultType="java.util.LinkedHashMap">
         select d.id as detailId, d.id as borrowDetailId, d.borrow_order_no as orderNo,
-               d.member_id as memberId, d.book_id as bookId, d.book_name as bookName,
+               d.member_id as memberId, d.book_code as bookCode, d.book_name as bookName,
                d.borrow_status as borrowStatus, d.borrow_qty as borrowQty,
                coalesce(d.returned_qty, 0) as returnedQty,
                coalesce(d.purchase_qty, 0) as purchaseQty,

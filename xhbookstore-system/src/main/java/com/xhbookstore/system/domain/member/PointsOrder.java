@@ -36,6 +36,19 @@ public class PointsOrder {
     private String appId;
     private Integer orginPoints;
     private Integer afterPoints;
+    private Long ruleId;
+    private String ruleCode;
+    private String ruleName;
+    private String direction;
+    private String triggerMode;
+    private String operatorName;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date operationTime;
+    private String orderStatus;
+    private String availabilityStatus;
+    private String balanceBucket;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date availableAt;
 
     public Integer getId() { return id; }
     public void setId(Integer id) { this.id = id; }
@@ -87,4 +100,26 @@ public class PointsOrder {
     public void setOrginPoints(Integer orginPoints) { this.orginPoints = orginPoints; }
     public Integer getAfterPoints() { return afterPoints; }
     public void setAfterPoints(Integer afterPoints) { this.afterPoints = afterPoints; }
+    public Long getRuleId() { return ruleId; }
+    public void setRuleId(Long ruleId) { this.ruleId = ruleId; }
+    public String getRuleCode() { return ruleCode; }
+    public void setRuleCode(String ruleCode) { this.ruleCode = ruleCode; }
+    public String getRuleName() { return ruleName; }
+    public void setRuleName(String ruleName) { this.ruleName = ruleName; }
+    public String getDirection() { return direction; }
+    public void setDirection(String direction) { this.direction = direction; }
+    public String getTriggerMode() { return triggerMode; }
+    public void setTriggerMode(String triggerMode) { this.triggerMode = triggerMode; }
+    public String getOperatorName() { return operatorName; }
+    public void setOperatorName(String operatorName) { this.operatorName = operatorName; }
+    public Date getOperationTime() { return operationTime; }
+    public void setOperationTime(Date operationTime) { this.operationTime = operationTime; }
+    public String getOrderStatus() { return orderStatus; }
+    public void setOrderStatus(String orderStatus) { this.orderStatus = orderStatus; }
+    public String getAvailabilityStatus() { return availabilityStatus; }
+    public void setAvailabilityStatus(String availabilityStatus) { this.availabilityStatus = availabilityStatus; }
+    public String getBalanceBucket() { return balanceBucket; }
+    public void setBalanceBucket(String balanceBucket) { this.balanceBucket = balanceBucket; }
+    public Date getAvailableAt() { return availableAt; }
+    public void setAvailableAt(Date availableAt) { this.availableAt = availableAt; }
 }

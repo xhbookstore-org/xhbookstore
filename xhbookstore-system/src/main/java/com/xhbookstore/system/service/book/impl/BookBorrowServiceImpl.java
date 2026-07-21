@@ -14,77 +14,63 @@ import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.mapper.book.*;
 import com.xhbookstore.system.service.book.IBookBorrowService;
 import com.xhbookstore.system.service.book.BookBorrowException;
+import com.xhbookstore.system.service.member.IPointsService;
 
 @Service
 public class BookBorrowServiceImpl implements IBookBorrowService {
+
+    private static final int MAX_IMAGES_PER_DETAIL = 3;
 
     @Autowired private BookBorrowOrderMapper orderMapper;
     @Autowired private BookBorrowDetailMapper detailMapper;
     @Autowired private BookReturnDetailMapper returnMapper;
     @Autowired private BookBorrowDetailImageMapper detailImageMapper;
     @Autowired private MemberMapper memberMapper;
-    @Autowired private BookInfoMapper bookInfoMapper;
     @Autowired private BookPurchaseOrderMapper purchaseOrderMapper;
     @Autowired private BookBorrowLogMapper borrowLogMapper;
     @Autowired private BookReturnLogMapper returnLogMapper;
     @Autowired private BookPurchaseLogMapper purchaseLogMapper;
-    @Autowired private BookInfoHistoryMapper bookInfoHistoryMapper;
+    @Autowired private IPointsService pointsService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AjaxResult createBorrowOrder(Integer memberId, List<Map<String, Object>> books,
-                                         String remark, String staffId, String staffName, Long deptId,
-                                         List<String> imageUrls) {
+                                         String remark, String staffId, String staffName, Long deptId) {
         Member member = memberMapper.selectMemberById(memberId);
         if (member == null) throw new BookBorrowException("Member not found");
         if (books == null || books.isEmpty()) throw new BookBorrowException("At least one book is required");
 
         String traceId = newTraceId();
         String orderNo = generateOrderNo("DY");
-        int totalQty = 0;
-        List<BookBorrowDetail> details = new ArrayList<>();
-        Map<Long, Integer> requestedQtyByBook = new LinkedHashMap<>();
-        Map<Long, BookInfo> lockedBooks = new LinkedHashMap<>();
+        List<BorrowBookInput> inputs = new ArrayList<>();
+        Set<String> requestImageIds = new HashSet<>();
 
         for (Map<String, Object> bookItem : books) {
-            Long bookId = toLong(bookItem.get("bookId"));
+            String bookCode = requiredText(bookItem.get("bookCode"), "Book code is required", 64);
+            String bookName = requiredText(firstNonBlankObject(bookItem.get("bookName"), bookItem.get("bookTitle")),
+                    "Book name is required", 200);
             int qty = toInt(bookItem.get("borrowQty"), 1);
-            if (bookId == null) throw new BookBorrowException("Book is required");
-            if (qty <= 0) throw new BookBorrowException("Borrow quantity must be greater than 0");
-
-            BookInfo beforeBook = lockedBooks.computeIfAbsent(bookId, bookInfoMapper::selectByIdForUpdate);
-            if (beforeBook == null) throw new BookBorrowException("Book not found: " + bookId);
-            requestedQtyByBook.merge(bookId, qty, Integer::sum);
-
-            BookBorrowDetail detail = new BookBorrowDetail();
-            detail.setBorrowOrderNo(orderNo);
-            detail.setMemberId(memberId);
-            detail.setBookId(bookId);
-            detail.setBookName(strOrDefault(bookItem.get("bookName"), beforeBook.getBookName()));
-            detail.setBorrowQty(qty);
-            detail.setRemark((String) bookItem.get("remark"));
-            detail.setFirstStaffId(staffId);
-            detail.setFirstStaffName(staffName);
-            details.add(detail);
-            totalQty += qty;
-        }
-
-        for (Map.Entry<Long, Integer> entry : requestedQtyByBook.entrySet()) {
-            BookInfo beforeBook = lockedBooks.get(entry.getKey());
-            if (safeInt(beforeBook.getLendableQty()) < entry.getValue()) {
-                throw new BookBorrowException("Not enough lendable stock: " + beforeBook.getBookName());
+            if (qty != 1) {
+                throw new BookBorrowException("Each book item must represent exactly one copy");
             }
-        }
-
-        for (Map.Entry<Long, Integer> entry : requestedQtyByBook.entrySet()) {
-            Long bookId = entry.getKey();
-            BookInfo beforeBook = lockedBooks.get(bookId);
-            if (bookInfoMapper.decreaseLendableQty(bookId, entry.getValue()) != 1) {
-                throw new BookBorrowException("Not enough lendable stock: " + beforeBook.getBookName());
+            List<String> imageIds = stringList(bookItem.get("imageIds"));
+            if (imageIds.size() > MAX_IMAGES_PER_DETAIL) {
+                throw new BookBorrowException("Each borrowed book can have at most 3 images");
             }
-            BookInfo afterBook = bookInfoMapper.selectById(bookId);
-            writeBookHistory(bookId, 2, beforeBook, afterBook, "lendable_qty",
-                    "BORROW_DECREASE_LENDABLE", orderNo, 1, staffId, staffName);
+            for (String imageId : imageIds) {
+                if (!requestImageIds.add(imageId)) {
+                    throw new BookBorrowException("Duplicate image id: " + imageId);
+                }
+                BookBorrowDetailImage image = detailImageMapper.selectByImageIdForUpdate(imageId);
+                if (image == null || image.getBorrowDetailId() != null || !"TEMP".equals(image.getBindStatus())) {
+                    throw new BookBorrowException("Image is unavailable: " + imageId);
+                }
+                if (!Objects.equals(image.getMemberId(), memberId)
+                        || !Objects.equals(image.getCreateStaffId(), staffId)) {
+                    throw new BookBorrowException("Image does not belong to this member or operator: " + imageId);
+                }
+            }
+            inputs.add(new BorrowBookInput(bookCode, bookName, text(bookItem.get("remark")), imageIds));
         }
 
         BookBorrowOrder order = new BookBorrowOrder();
@@ -93,7 +79,9 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         order.setMemberCardNo(member.getCardNo());
         order.setMemberName(member.getName());
         order.setMemberPhone(member.getPhone());
-        order.setTotalBookCount(totalQty);
+        order.setMemberCardTypeName(member.getCardTypeName());
+        order.setMemberValidDate(member.getValidDate());
+        order.setTotalBookCount(inputs.size());
         order.setBorrowStatus(1);
         order.setRemark(remark);
         order.setDeptId(deptId);
@@ -103,35 +91,45 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         writeBorrowLog(traceId, order, null, null, order, "", 0, 1,
                 "book_borrow_order", staffId, staffName);
 
-        for (BookBorrowDetail detail : details) {
+        List<Map<String, Object>> detailResults = new ArrayList<>();
+        int totalImages = 0;
+        for (BorrowBookInput input : inputs) {
+            BookBorrowDetail detail = new BookBorrowDetail();
             detail.setBorrowOrderId(order.getId());
             detail.setBorrowOrderNo(orderNo);
+            detail.setMemberId(memberId);
+            detail.setBookCode(input.bookCode());
+            detail.setBookName(input.bookName());
+            detail.setBorrowQty(1);
+            detail.setRemark(input.remark());
+            detail.setFirstStaffId(staffId);
+            detail.setFirstStaffName(staffName);
             detailMapper.insert(detail);
             writeBorrowLog(traceId, order, detail.getId(), null, detail, "", 0, 4,
                     "book_borrow_detail", staffId, staffName);
-        }
-
-        if (imageUrls != null && !imageUrls.isEmpty()) {
             int sort = 1;
-            for (String url : imageUrls) {
-                if (url == null || url.trim().isEmpty()) continue;
-                BookBorrowDetailImage img = new BookBorrowDetailImage();
-                img.setBorrowOrderId(order.getId());
-                img.setBorrowOrderNo(orderNo);
-                img.setImageUrl(url.trim());
-                img.setImageType(1);
-                img.setSortOrder(sort++);
-                img.setCreateStaffId(staffId);
-                img.setCreateStaffName(staffName);
-                detailImageMapper.insert(img);
+            for (String imageId : input.imageIds()) {
+                if (detailImageMapper.bindToDetail(imageId, memberId, detail.getId(), order.getId(), orderNo, sort++) != 1) {
+                    throw new BookBorrowException("Failed to bind image: " + imageId);
+                }
             }
+            totalImages += input.imageIds().size();
+            Map<String, Object> detailResult = new LinkedHashMap<>();
+            detailResult.put("borrowDetailId", detail.getId());
+            detailResult.put("bookCode", detail.getBookCode());
+            detailResult.put("bookName", detail.getBookName());
+            detailResult.put("imageCount", input.imageIds().size());
+            detailResults.add(detailResult);
         }
 
-        Map<String, Object> data = new HashMap<>();
+        Map<String, Object> data = new LinkedHashMap<>();
         data.put("orderNo", orderNo);
-        data.put("totalBookCount", totalQty);
-        data.put("detailCount", details.size());
-        data.put("imageCount", imageUrls != null ? imageUrls.size() : 0);
+        data.put("borrowOrderId", order.getId());
+        data.put("totalBookCount", inputs.size());
+        data.put("detailCount", inputs.size());
+        data.put("imageCount", totalImages);
+        data.put("details", detailResults);
+        data.put("points", pointsService.grantBorrowPoints(memberId, orderNo, inputs.size(), deptId));
         data.put("traceId", traceId);
         return AjaxResult.success("Borrow created", data);
     }
@@ -147,9 +145,9 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         Set<Long> returnDetailIds = new HashSet<>();
         for (Map<String, Object> item : returnItems) {
             Long detailId = toLong(item.get("borrowDetailId"));
-            int returnQty = toInt(item.get("returnQty"), 0);
+            int returnQty = toInt(item.get("returnQty"), 1);
             if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
-            if (returnQty <= 0) throw new BookBorrowException("Return quantity must be greater than 0");
+            if (returnQty != 1) throw new BookBorrowException("Each borrow detail must be returned as one copy");
             if (!returnDetailIds.add(detailId)) throw new BookBorrowException("Duplicate borrow detail: " + detailId);
 
             BookBorrowDetail detail = detailMapper.selectByIdForUpdate(detailId);
@@ -159,9 +157,6 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             if (returnQty > remainingQty(detail)) {
                 throw new BookBorrowException("Return quantity exceeds remaining quantity: " + detail.getBookName());
             }
-            if (detail.getBookId() != null && bookInfoMapper.selectByIdForUpdate(detail.getBookId()) == null) {
-                throw new BookBorrowException("Book not found: " + detail.getBookId());
-            }
         }
 
         String traceId = newTraceId();
@@ -170,11 +165,11 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
 
         for (Map<String, Object> item : returnItems) {
             Long detailId = toLong(item.get("borrowDetailId"));
-            int returnQty = toInt(item.get("returnQty"), 0);
+            int returnQty = toInt(item.get("returnQty"), 1);
             int returnType = toInt(item.get("returnType"), 1);
             String itemRemark = (String) item.get("remark");
             if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
-            if (returnQty <= 0) throw new BookBorrowException("Return quantity must be greater than 0");
+            if (returnQty != 1) throw new BookBorrowException("Each borrow detail must be returned as one copy");
 
             BookBorrowDetail beforeDetail = detailMapper.selectByIdForUpdate(detailId);
             if (beforeDetail == null || !order.getId().equals(beforeDetail.getBorrowOrderId())) {
@@ -182,11 +177,6 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             }
             if (returnQty > remainingQty(beforeDetail)) {
                 throw new BookBorrowException("Return quantity exceeds remaining quantity: " + beforeDetail.getBookName());
-            }
-
-            BookInfo beforeBook = null;
-            if (beforeDetail.getBookId() != null) {
-                beforeBook = bookInfoMapper.selectByIdForUpdate(beforeDetail.getBookId());
             }
 
             String returnOrderNo = generateOrderNo("HS");
@@ -197,6 +187,7 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             rd.setBorrowDetailId(detailId);
             rd.setMemberId(order.getMemberId());
             rd.setBookId(beforeDetail.getBookId());
+            rd.setBookCode(beforeDetail.getBookCode());
             rd.setBookName(beforeDetail.getBookName());
             rd.setReturnQty(returnQty);
             rd.setReturnType(returnType);
@@ -213,15 +204,6 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             applyDetailStatus(afterDetail);
             detailMapper.updateReturnInfo(afterDetail);
             BookBorrowDetail savedDetail = detailMapper.selectById(detailId);
-
-            if (beforeDetail.getBookId() != null) {
-                if (bookInfoMapper.increaseLendableQty(beforeDetail.getBookId(), returnQty) != 1) {
-                    throw new BookBorrowException("Failed to restore lendable stock: " + beforeDetail.getBookName());
-                }
-                BookInfo afterBook = bookInfoMapper.selectById(beforeDetail.getBookId());
-                writeBookHistory(beforeDetail.getBookId(), 2, beforeBook, afterBook, "lendable_qty",
-                        "RETURN_INCREASE_LENDABLE", returnOrderNo, 2, staffId, staffName);
-            }
 
             Map<String, Object> beforeData = new LinkedHashMap<>();
             beforeData.put("borrowDetail", beforeDetail);
@@ -259,9 +241,9 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         Set<Long> purchaseDetailIds = new HashSet<>();
         for (Map<String, Object> item : purchaseItems) {
             Long detailId = toLong(item.get("borrowDetailId"));
-            int purchaseQty = toInt(item.get("purchaseQty"), 0);
+            int purchaseQty = toInt(item.get("purchaseQty"), 1);
             if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
-            if (purchaseQty <= 0) throw new BookBorrowException("Purchase quantity must be greater than 0");
+            if (purchaseQty != 1) throw new BookBorrowException("Each borrow detail must be purchased as one copy");
             if (!purchaseDetailIds.add(detailId)) throw new BookBorrowException("Duplicate borrow detail: " + detailId);
 
             BookBorrowDetail detail = detailMapper.selectByIdForUpdate(detailId);
@@ -272,12 +254,9 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             if (purchaseQty > remainingQty(detail)) {
                 throw new BookBorrowException("Purchase quantity exceeds remaining quantity: " + detail.getBookName());
             }
-            if (detail.getBookId() != null) {
-                BookInfo book = bookInfoMapper.selectByIdForUpdate(detail.getBookId());
-                if (book == null) throw new BookBorrowException("Book not found: " + detail.getBookId());
-                if (safeInt(book.getStockQty()) < purchaseQty) {
-                    throw new BookBorrowException("Not enough stock for purchase conversion: " + detail.getBookName());
-                }
+            BigDecimal unitPrice = toBigDecimal(item.get("unitPrice"));
+            if (unitPrice == null || unitPrice.signum() < 0) {
+                throw new BookBorrowException("Unit price is required and cannot be negative");
             }
         }
 
@@ -289,9 +268,9 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
 
         for (Map<String, Object> item : purchaseItems) {
             Long detailId = toLong(item.get("borrowDetailId"));
-            int purchaseQty = toInt(item.get("purchaseQty"), 0);
+            int purchaseQty = toInt(item.get("purchaseQty"), 1);
             if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
-            if (purchaseQty <= 0) throw new BookBorrowException("Purchase quantity must be greater than 0");
+            if (purchaseQty != 1) throw new BookBorrowException("Each borrow detail must be purchased as one copy");
 
             BookBorrowDetail beforeDetail = detailMapper.selectByIdForUpdate(detailId);
             if (beforeDetail == null) throw new BookBorrowException("Borrow detail not found: " + detailId);
@@ -301,15 +280,10 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
                 throw new BookBorrowException("Purchase quantity exceeds remaining quantity: " + beforeDetail.getBookName());
             }
 
-            BookInfo beforeBook = null;
-            if (beforeDetail.getBookId() != null) {
-                beforeBook = bookInfoMapper.selectByIdForUpdate(beforeDetail.getBookId());
-                if (beforeBook == null) throw new BookBorrowException("Book not found: " + beforeDetail.getBookId());
-            }
-
             BigDecimal unitPrice = toBigDecimal(item.get("unitPrice"));
-            if (unitPrice == null && beforeBook != null) unitPrice = firstNonNull(beforeBook.getSalePrice(), beforeBook.getPrice());
-            if (unitPrice == null) unitPrice = BigDecimal.ZERO;
+            if (unitPrice == null || unitPrice.signum() < 0) {
+                throw new BookBorrowException("Unit price is required and cannot be negative");
+            }
             BigDecimal receivableAmount = toBigDecimal(item.get("receivableAmount"));
             if (receivableAmount == null) receivableAmount = unitPrice.multiply(BigDecimal.valueOf(purchaseQty));
             BigDecimal paidAmount = toBigDecimal(item.get("paidAmount"));
@@ -331,6 +305,7 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             purchaseOrder.put("orderType", 2);
             purchaseOrder.put("paymentType", paymentType);
             purchaseOrder.put("bookId", beforeDetail.getBookId());
+            purchaseOrder.put("bookCode", beforeDetail.getBookCode());
             purchaseOrder.put("bookName", beforeDetail.getBookName());
             purchaseOrder.put("qty", purchaseQty);
             purchaseOrder.put("unitPrice", unitPrice);
@@ -354,22 +329,13 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             detailMapper.updatePurchaseInfo(afterDetail);
             BookBorrowDetail savedDetail = detailMapper.selectById(detailId);
 
-            if (beforeDetail.getBookId() != null) {
-                if (bookInfoMapper.decreaseStockQty(beforeDetail.getBookId(), purchaseQty) != 1) {
-                    throw new BookBorrowException("Not enough stock for purchase conversion: " + beforeDetail.getBookName());
-                }
-                BookInfo afterBook = bookInfoMapper.selectById(beforeDetail.getBookId());
-                writeBookHistory(beforeDetail.getBookId(), 2, beforeBook, afterBook, "stock_qty",
-                        "BORROW_TO_PURCHASE_DECREASE_STOCK", purchaseOrderNo, 3, staffId, staffName);
-            }
-
             Map<String, Object> beforeData = new LinkedHashMap<>();
             beforeData.put("borrowDetail", beforeDetail);
             Map<String, Object> afterData = new LinkedHashMap<>();
             afterData.put("purchaseOrder", purchaseOrder);
             afterData.put("borrowDetail", savedDetail);
             writePurchaseLog(traceId, purchaseOrder, beforeData, afterData,
-                    "purchase_qty,purchase_order_no,borrow_status,stock_qty", staffId, staffName);
+                    "purchase_qty,purchase_order_no,borrow_status", staffId, staffName);
             writeBorrowLog(traceId, order, detailId, beforeDetail, savedDetail, purchaseOrderNo, 2, 6,
                     "purchase_qty,purchase_order_no,borrow_status,return_all_time", staffId, staffName);
 
@@ -456,6 +422,11 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         return returnMapper.selectByBorrowOrderId(orderId);
     }
 
+    @Override
+    public List<BookBorrowDetailImage> selectImagesByDetailId(Long detailId) {
+        return detailImageMapper.selectByDetailId(detailId);
+    }
+
     private BookBorrowOrder refreshOrderStatus(BookBorrowOrder order, String staffId, String staffName) {
         List<BookBorrowDetail> details = detailMapper.selectByOrderId(order.getId());
         boolean allDone = true;
@@ -467,7 +438,7 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             if (settled < safeInt(d.getBorrowQty())) allDone = false;
         }
         BookBorrowOrder update = cloneOrder(order);
-        update.setBorrowStatus(allDone ? 2 : (anyDone ? 3 : 1));
+        update.setBorrowStatus(allDone ? 3 : (anyDone ? 2 : 1));
         update.setIsFinished(allDone ? 1 : 0);
         update.setReturnAllTime(allDone ? new Date() : null);
         update.setLastStaffId(staffId);
@@ -485,7 +456,7 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
             detail.setBorrowStatus(purchaseQty > 0 ? 5 : 2);
             detail.setReturnAllTime(new Date());
         } else {
-            detail.setBorrowStatus(purchaseQty > 0 ? 4 : 3);
+            detail.setBorrowStatus(1);
             detail.setReturnAllTime(null);
         }
     }
@@ -501,6 +472,7 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         d.setBorrowOrderNo(src.getBorrowOrderNo());
         d.setMemberId(src.getMemberId());
         d.setBookId(src.getBookId());
+        d.setBookCode(src.getBookCode());
         d.setBookName(src.getBookName());
         d.setBorrowQty(src.getBorrowQty());
         d.setReturnedQty(src.getReturnedQty());
@@ -528,6 +500,8 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         o.setMemberCardNo(src.getMemberCardNo());
         o.setMemberName(src.getMemberName());
         o.setMemberPhone(src.getMemberPhone());
+        o.setMemberCardTypeName(src.getMemberCardTypeName());
+        o.setMemberValidDate(src.getMemberValidDate());
         o.setTotalBookCount(src.getTotalBookCount());
         o.setIsFinished(src.getIsFinished());
         o.setBorrowStatus(src.getBorrowStatus());
@@ -603,23 +577,6 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         purchaseLogMapper.insert(log);
     }
 
-    private void writeBookHistory(Long bookId, int changeType, Object beforeData, Object afterData,
-                                  String changeFields, String reason, String sourceOrderNo,
-                                  int sourceType, String staffId, String staffName) {
-        Map<String, Object> history = new HashMap<>();
-        history.put("bookId", bookId);
-        history.put("changeType", changeType);
-        history.put("beforeData", toJson(beforeData));
-        history.put("afterData", toJson(afterData));
-        history.put("changeFields", changeFields);
-        history.put("changeReason", reason);
-        history.put("sourceOrderNo", sourceOrderNo);
-        history.put("sourceType", sourceType);
-        history.put("staffId", staffId);
-        history.put("staffName", staffName);
-        bookInfoHistoryMapper.insert(history);
-    }
-
     private String toJson(Object data) {
         return data == null ? null : JSON.toJSONString(data);
     }
@@ -648,13 +605,34 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         return new BigDecimal(value.toString());
     }
 
-    private BigDecimal firstNonNull(BigDecimal first, BigDecimal second) {
-        return first != null ? first : second;
+    private String requiredText(Object value, String message, int maxLength) {
+        String result = text(value);
+        if (result == null) throw new BookBorrowException(message);
+        if (result.length() > maxLength) throw new BookBorrowException(message + " (max " + maxLength + ")");
+        return result;
     }
 
-    private String strOrDefault(Object value, String defaultValue) {
-        if (value == null || value.toString().trim().isEmpty()) return defaultValue;
-        return value.toString();
+    private String text(Object value) {
+        if (value == null) return null;
+        String result = value.toString().trim();
+        return result.isEmpty() ? null : result;
+    }
+
+    private Object firstNonBlankObject(Object first, Object second) {
+        return first != null && !first.toString().isBlank() ? first : second;
+    }
+
+    private List<String> stringList(Object value) {
+        if (value == null) return Collections.emptyList();
+        if (!(value instanceof Collection<?> values)) {
+            throw new BookBorrowException("imageIds must be an array");
+        }
+        List<String> result = new ArrayList<>();
+        for (Object item : values) {
+            String imageId = requiredText(item, "Image id is required", 64);
+            result.add(imageId);
+        }
+        return result;
     }
 
     private String newTraceId() {
@@ -666,5 +644,8 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         String dateStr = sdf.format(new Date());
         int random = (int)(Math.random() * 900000) + 100000;
         return prefix + dateStr + random;
+    }
+
+    private record BorrowBookInput(String bookCode, String bookName, String remark, List<String> imageIds) {
     }
 }

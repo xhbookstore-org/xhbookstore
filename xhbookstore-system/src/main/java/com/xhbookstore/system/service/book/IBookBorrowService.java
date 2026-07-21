@@ -6,10 +6,11 @@ import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.system.domain.book.BookBorrowOrder;
 import com.xhbookstore.system.domain.book.BookBorrowDetail;
 import com.xhbookstore.system.domain.book.BookReturnDetail;
+import com.xhbookstore.system.domain.book.BookBorrowDetailImage;
 
 public interface IBookBorrowService {
     AjaxResult createBorrowOrder(Integer memberId, List<Map<String, Object>> books, String remark,
-                                  String staffId, String staffName, Long deptId, List<String> imageUrls);
+                                  String staffId, String staffName, Long deptId);
 
     AjaxResult returnBook(String borrowOrderNo, List<Map<String, Object>> returnItems,
                            String staffId, String staffName, Long deptId);
@@ -37,4 +38,6 @@ public interface IBookBorrowService {
     int sumRemainingByMemberId(Integer memberId);
 
     List<BookReturnDetail> selectReturnsByOrderId(Long orderId);
+
+    List<BookBorrowDetailImage> selectImagesByDetailId(Long detailId);
 }

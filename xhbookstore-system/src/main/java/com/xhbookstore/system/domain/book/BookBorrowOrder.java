@@ -10,6 +10,9 @@ public class BookBorrowOrder {
     private String memberCardNo;
     private String memberName;
     private String memberPhone;
+    private String memberCardTypeName;
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private Date memberValidDate;
     private Integer totalBookCount;
     private Integer isFinished;
     private Integer borrowStatus;
@@ -44,6 +47,10 @@ public class BookBorrowOrder {
     public void setMemberName(String memberName) { this.memberName = memberName; }
     public String getMemberPhone() { return memberPhone; }
     public void setMemberPhone(String memberPhone) { this.memberPhone = memberPhone; }
+    public String getMemberCardTypeName() { return memberCardTypeName; }
+    public void setMemberCardTypeName(String memberCardTypeName) { this.memberCardTypeName = memberCardTypeName; }
+    public Date getMemberValidDate() { return memberValidDate; }
+    public void setMemberValidDate(Date memberValidDate) { this.memberValidDate = memberValidDate; }
     public Integer getTotalBookCount() { return totalBookCount; }
     public void setTotalBookCount(Integer totalBookCount) { this.totalBookCount = totalBookCount; }
     public Integer getIsFinished() { return isFinished; }

@@ -1,4 +1,4 @@
-name: Build & Deploy
+name: Build and Deploy
 
 on:
   push:
@@ -11,159 +11,87 @@ on:
         options: [staging, prod]
         default: staging
 
-env:
-  JAVA_VERSION: '17'
-  NODE_VERSION: '18'
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'staging' }}
+  cancel-in-progress: false
 
 jobs:
-  # ======================== Build ========================
-  build:
-    name: Build All Modules
+  prepare:
+    name: Prepare deployment
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      environment: ${{ steps.metadata.outputs.environment }}
+    steps:
+      - name: Generate deployment metadata
+        id: metadata
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            environment="${{ inputs.environment }}"
+          else
+            environment="staging"
+          fi
+          timestamp="$(date +%Y%m%d_%H%M%S)"
+          short_sha="${GITHUB_SHA::7}"
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+          echo "version=v${timestamp}_${short_sha}_r${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+  deploy-staging:
+    name: Build and deploy to staging
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'staging'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    outputs:
-      version: ${{ steps.version.outputs.tag }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Generate version tag
-        id: version
-        run: |
-          TS=$(date +%Y%m%d_%H%M%S)
-          echo "tag=v${TS}_r${{ github.run_number }}" >> $GITHUB_OUTPUT
-
-      - name: Setup Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-
-      - name: Setup Node ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Verify toolchain
-        run: |
-          java -version
-          mvn --version
-          node --version
-          npm --version
-
-      # ---------- Maven: admin & api ----------
-      - name: Build Admin & API JARs
-        run: mvn package -pl xhbookstore-admin,xhbookstore-api -am -Dmaven.test.skip=true --batch-mode 2>&1
-
-      # ---------- npm: ui ----------
-      - name: Build UI (staging)
-        run: |
-          cd xhbookstore-ui
-          npm install
-          npm run build:stage
-
-      - name: Package UI
-        run: cd xhbookstore-ui && zip -r dist.zip dist/
-
-      # ---------- Publish Release ----------
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag: ${{ steps.version.outputs.tag }}
-          name: ${{ steps.version.outputs.tag }}
-          body: |
-            🔨 触发方式: ${{ github.event_name }}
-            📝 提交: [${{ github.sha }}](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
-          files: |
-            xhbookstore-admin/target/xhbookstore-admin.jar
-            xhbookstore-api/target/xhbookstore-api.jar
-            xhbookstore-ui/dist.zip
-          fail_on_unmatched_files: false
-
-      # ---------- Artifacts (for deploy jobs) ----------
-      - name: Upload admin JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: admin-jar
-          path: xhbookstore-admin/target/xhbookstore-admin.jar
-
-      - name: Upload api JAR artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: api-jar
-          path: xhbookstore-api/target/xhbookstore-api.jar
-
-      - name: Upload UI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-zip
-          path: xhbookstore-ui/dist.zip
-
-  # ======================== Deploy Staging ========================
-  deploy-staging:
-    name: Deploy → Staging (152.136.127.168)
-    needs: build
-    if: success()
-    runs-on: ubuntu-latest
     environment:
       name: staging
       url: http://152.136.127.168
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-
-      - name: SCP upload to server
-        uses: appleboy/scp-action@v0
+      - name: Pull source, build and deploy on staging server
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
         with:
           host: 152.136.127.168
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "admin-jar/xhbookstore-admin.jar,api-jar/xhbookstore-api.jar,ui-zip/dist.zip"
-          target: /tmp/deploy/
-          strip_components: 1
-          rm: true
-
-      - name: Apply deployment (versioned)
-        uses: appleboy/ssh-action@v1
-        with:
-          host: 152.136.127.168
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_ENV
+          command_timeout: 18m
+          envs: VERSION,COMMIT_SHA
           script: |
-            export DEPLOY_ENV=staging
-            bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
+            DEPLOY_ENV=staging \
+            bash /www/server/java/projects/source-deploy.sh staging "$VERSION" "$COMMIT_SHA"
 
-  # ======================== Deploy Prod ========================
   deploy-prod:
-    name: Deploy → Prod
-    needs: build
-    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'prod'
+    name: Build and deploy to production
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'prod'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: prod
-      url: http://<prod-server>
+      url: https://cfxinhua.cn
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-
-      - name: SCP upload to prod server
-        uses: appleboy/scp-action@v0
+      - name: Pull source, build and deploy on production server
+        uses: appleboy/ssh-action@v1.2.5
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
         with:
           host: ${{ secrets.PROD_HOST }}
-          username: root
+          username: ubuntu
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "admin-jar/xhbookstore-admin.jar,api-jar/xhbookstore-api.jar,ui-zip/dist.zip"
-          target: /tmp/deploy/
-          strip_components: 1
-          rm: true
-
-      - name: Apply deployment (versioned)
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.PROD_HOST }}
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: DEPLOY_ENV
+          command_timeout: 18m
+          envs: VERSION,COMMIT_SHA
           script: |
-            export DEPLOY_ENV=prod
-            bash /www/server/java/projects/deploy.sh install ${{ needs.build.outputs.version }}
+            DEPLOY_ENV=prod \
+            bash /www/server/java/projects/source-deploy.sh prod "$VERSION" "$COMMIT_SHA"
+
+      - name: Verify public endpoints
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --output /dev/null https://cfxinhua.cn/
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --output /dev/null https://cfxinhua.cn/prod-api/getInfo
+          curl --fail --silent --show-error --retry 5 --retry-delay 3 --output /dev/null https://cfxinhua.cn/api/mp/v1/stores

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.xhbookstore.api.constant.ApiErrorCode;
 import com.xhbookstore.api.exception.ApiException;
@@ -22,13 +23,10 @@ import com.xhbookstore.api.service.ImageUploadValidator.ValidatedImage;
 import com.xhbookstore.system.domain.book.BookBorrowDetail;
 import com.xhbookstore.system.domain.book.BookBorrowDetailImage;
 import com.xhbookstore.system.domain.book.BookBorrowOrder;
-import com.xhbookstore.system.domain.book.BookImage;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.mapper.book.BookBorrowDetailImageMapper;
 import com.xhbookstore.system.mapper.book.BookBorrowDetailMapper;
 import com.xhbookstore.system.mapper.book.BookBorrowOrderMapper;
-import com.xhbookstore.system.mapper.book.BookImageMapper;
-import com.xhbookstore.system.mapper.book.BookInfoMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -40,19 +38,18 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequestMapping("/api/mp/v1/files")
 public class FileController {
     private static final Logger log = LoggerFactory.getLogger(FileController.class);
-    private static final int MAX_IMAGES_PER_RESOURCE_TYPE = 10;
+    private static final int MAX_IMAGES_PER_DETAIL = 3;
 
     @Autowired private ICosService cosService;
     @Autowired private ImageUploadValidator imageValidator;
-    @Autowired private BookImageMapper bookImageMapper;
     @Autowired private BookBorrowDetailImageMapper borrowDetailImageMapper;
     @Autowired private BookBorrowDetailMapper borrowDetailMapper;
     @Autowired private BookBorrowOrderMapper borrowOrderMapper;
-    @Autowired private BookInfoMapper bookInfoMapper;
     @Autowired private MemberMapper memberMapper;
 
     @Operation(summary = "Upload book attachment image")
     @PostMapping("/book-attachment-images")
+    @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Map<String, Object>> uploadBookImage(
             @RequestParam("file") MultipartFile file,
             @RequestParam(required = false) String memberId,
@@ -67,17 +64,20 @@ public class FileController {
             throw new ApiException(ApiErrorCode.PARAM_INVALID, "Invalid image type");
         }
         boolean staff = Boolean.TRUE.equals(request.getAttribute("isStaff"));
-        Integer tokenMemberId = integerAttr(request, "memberId");
         Long staffUserId = longAttr(request, "staffUserId");
+        if (!staff || staffUserId == null) {
+            throw new ApiException(ApiErrorCode.FORBIDDEN, "Only staff can upload borrow images");
+        }
+        if (bookId != null) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "bookId is no longer supported");
+        }
         UploadResource resource = resolveResource(memberId, borrowOrderNo, borrowDetailId,
-                borrowOrderId, bookId, imageType, staff, tokenMemberId);
+                borrowOrderId);
         ValidatedImage validated = imageValidator.validate(file);
 
-        String actorId = staff ? String.valueOf(staffUserId) : "member:" + tokenMemberId;
-        String actorName = staff ? "staff" : "member";
-        String folder = resource.bookId() != null && resource.borrowDetail() == null
-                ? "bookstore/books/" + resource.bookId()
-                : "bookstore/" + resource.memberId();
+        String actorId = String.valueOf(staffUserId);
+        String actorName = "staff";
+        String folder = "bookstore/" + resource.memberId();
         Map<String, String> uploadResult = null;
 
         try {
@@ -94,8 +94,10 @@ public class FileController {
             data.put("format", validated.extension());
             data.put("width", validated.width());
             data.put("height", validated.height());
-            log.info("[image upload success] actor={}, memberId={}, detailId={}, bookId={}, key={}, size={}",
-                    actorId, resource.memberId(), borrowDetailId, resource.bookId(), uploadResult.get("key"),
+            data.put("borrowDetailId", resource.borrowDetail() == null ? null : resource.borrowDetail().getId());
+            data.put("bindStatus", resource.borrowDetail() == null ? "TEMP" : "BOUND");
+            log.info("[image upload success] actor={}, memberId={}, detailId={}, key={}, size={}",
+                    actorId, resource.memberId(), borrowDetailId, uploadResult.get("key"),
                     validated.bytes().length);
             return ApiResponse.success(data);
         } catch (ApiException e) {
@@ -103,30 +105,16 @@ public class FileController {
             throw e;
         } catch (Exception e) {
             deleteUploadedObject(uploadResult);
-            log.warn("[image upload failed] actor={}, memberId={}, detailId={}, bookId={}, reason={}",
-                    actorId, resource.memberId(), borrowDetailId, resource.bookId(), e.getMessage());
+            log.warn("[image upload failed] actor={}, memberId={}, detailId={}, reason={}",
+                    actorId, resource.memberId(), borrowDetailId, e.getMessage());
             throw new ApiException(ApiErrorCode.FILE_UPLOAD_FAILED, "Image upload failed");
         }
     }
 
     private UploadResource resolveResource(String requestedMemberId, String requestedOrderNo,
-                                            Long detailId, Long requestedOrderId, Long requestedBookId,
-                                            Integer imageType, boolean staff, Integer tokenMemberId) {
-        if (detailId != null && requestedBookId != null) {
-            throw new ApiException(ApiErrorCode.PARAM_INVALID, "Borrow detail and book cover cannot be mixed");
-        }
-        if (requestedBookId != null) {
-            if (!staff) throw new ApiException(ApiErrorCode.FORBIDDEN, "Only staff can upload book covers");
-            if (bookInfoMapper.selectById(requestedBookId) == null) {
-                throw new ApiException(ApiErrorCode.NOT_FOUND, "Book not found");
-            }
-            if (bookImageMapper.countByBookAndType(requestedBookId, imageType) >= MAX_IMAGES_PER_RESOURCE_TYPE) {
-                throw new ApiException(ApiErrorCode.PARAM_INVALID, "Image limit exceeded");
-            }
-            return new UploadResource(null, requestedBookId, null, null);
-        }
+                                            Long detailId, Long requestedOrderId) {
         if (detailId != null) {
-            BookBorrowDetail detail = borrowDetailMapper.selectById(detailId);
+            BookBorrowDetail detail = borrowDetailMapper.selectByIdForUpdate(detailId);
             if (detail == null) throw new ApiException(ApiErrorCode.NOT_FOUND, "Borrow detail not found");
             BookBorrowOrder order = borrowOrderMapper.selectById(detail.getBorrowOrderId());
             if (order == null || !order.getOrderNo().equals(detail.getBorrowOrderNo())) {
@@ -135,13 +123,10 @@ public class FileController {
             assertMatches(requestedMemberId, order.getMemberId(), "memberId");
             assertMatches(requestedOrderId, order.getId(), "borrowOrderId");
             assertMatches(requestedOrderNo, order.getOrderNo(), "borrowOrderNo");
-            if (!staff && !order.getMemberId().equals(tokenMemberId)) {
-                throw new ApiException(ApiErrorCode.FORBIDDEN, "No permission for this borrow detail");
-            }
-            if (borrowDetailImageMapper.countByDetailAndType(detailId, imageType) >= MAX_IMAGES_PER_RESOURCE_TYPE) {
+            if (borrowDetailImageMapper.countByDetail(detailId) >= MAX_IMAGES_PER_DETAIL) {
                 throw new ApiException(ApiErrorCode.PARAM_INVALID, "Image limit exceeded");
             }
-            return new UploadResource(order.getMemberId(), detail.getBookId(), detail, order);
+            return new UploadResource(order.getMemberId(), detail, order);
         }
 
         Integer resolvedMemberId = parseInteger(requestedMemberId);
@@ -150,16 +135,14 @@ public class FileController {
         if (member == null || member.getStatus() == null || member.getStatus() != 0) {
             throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
         }
-        if (!staff && !resolvedMemberId.equals(tokenMemberId)) {
-            throw new ApiException(ApiErrorCode.FORBIDDEN, "No permission for this member");
-        }
-        return new UploadResource(resolvedMemberId, null, null, null);
+        return new UploadResource(resolvedMemberId, null, null);
     }
 
     private void saveResourceImage(UploadResource resource, Map<String, String> result, Integer imageType,
                                    String actorId, String actorName, String imageName) {
         if (resource.borrowDetail() != null) {
             BookBorrowDetailImage image = new BookBorrowDetailImage();
+            image.setMemberId(resource.memberId());
             image.setBorrowDetailId(resource.borrowDetail().getId());
             image.setBorrowOrderId(resource.borrowOrder().getId());
             image.setBorrowOrderNo(resource.borrowOrder().getOrderNo());
@@ -168,20 +151,24 @@ public class FileController {
             image.setImageUrl(result.get("url"));
             image.setThumbUrl(result.get("thumbUrl"));
             image.setImageType(imageType);
+            image.setSortOrder(borrowDetailImageMapper.maxSortByDetail(resource.borrowDetail().getId()) + 1);
+            image.setBindStatus("BOUND");
             image.setCreateStaffId(actorId);
             image.setCreateStaffName(actorName);
             if (borrowDetailImageMapper.insert(image) != 1) throw new IllegalStateException("Image record insert failed");
-        } else if (resource.bookId() != null) {
-            BookImage image = new BookImage();
-            image.setBookId(resource.bookId());
+        } else {
+            BookBorrowDetailImage image = new BookBorrowDetailImage();
+            image.setMemberId(resource.memberId());
             image.setImageId(result.get("imageId"));
             image.setImageName(imageName);
             image.setImageUrl(result.get("url"));
             image.setThumbUrl(result.get("thumbUrl"));
             image.setImageType(imageType);
+            image.setSortOrder(0);
+            image.setBindStatus("TEMP");
             image.setCreateStaffId(actorId);
             image.setCreateStaffName(actorName);
-            if (bookImageMapper.insert(image) != 1) throw new IllegalStateException("Image record insert failed");
+            if (borrowDetailImageMapper.insert(image) != 1) throw new IllegalStateException("Image record insert failed");
         }
     }
 
@@ -209,16 +196,12 @@ public class FileController {
         }
     }
 
-    private Integer integerAttr(HttpServletRequest request, String name) {
-        return parseInteger(request.getAttribute(name));
-    }
-
     private Long longAttr(HttpServletRequest request, String name) {
         Object value = request.getAttribute(name);
         return value == null ? null : Long.valueOf(value.toString());
     }
 
-    private record UploadResource(Integer memberId, Long bookId, BookBorrowDetail borrowDetail,
+    private record UploadResource(Integer memberId, BookBorrowDetail borrowDetail,
                                   BookBorrowOrder borrowOrder) {
     }
 }

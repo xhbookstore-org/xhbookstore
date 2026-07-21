@@ -8,7 +8,9 @@ public class BookBorrowDetail {
     private Long borrowOrderId;
     private String borrowOrderNo;
     private Integer memberId;
+    /** Legacy compatibility only. New borrow records do not depend on book_info. */
     private Long bookId;
+    private String bookCode;
     private String bookName;
     private Integer borrowQty;
     private Integer returnedQty;
@@ -40,6 +42,8 @@ public class BookBorrowDetail {
     public void setMemberId(Integer memberId) { this.memberId = memberId; }
     public Long getBookId() { return bookId; }
     public void setBookId(Long bookId) { this.bookId = bookId; }
+    public String getBookCode() { return bookCode; }
+    public void setBookCode(String bookCode) { this.bookCode = bookCode; }
     public String getBookName() { return bookName; }
     public void setBookName(String bookName) { this.bookName = bookName; }
     public Integer getBorrowQty() { return borrowQty; }

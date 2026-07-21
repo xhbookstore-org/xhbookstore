@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xhbookstore.system.mapper.member.PointsOrderAdminMapper">
+
+    <resultMap id="PointsOrderRecordResult" type="com.xhbookstore.system.domain.member.PointsOrderRecord">
+        <id property="id" column="id"/>
+        <result property="orderNumber" column="order_number"/>
+        <result property="memberId" column="member_id"/>
+        <result property="memberName" column="member_name"/>
+        <result property="memberNo" column="member_no"/>
+        <result property="memberPhone" column="member_phone"/>
+        <result property="deptId" column="dept_id"/>
+        <result property="deptName" column="dept_name"/>
+        <result property="amount" column="amount"/>
+        <result property="description" column="description"/>
+        <result property="orginPoints" column="orgin_points"/>
+        <result property="afterPoints" column="after_points"/>
+        <result property="ruleId" column="rule_id"/>
+        <result property="ruleCode" column="rule_code"/>
+        <result property="ruleName" column="rule_name"/>
+        <result property="sceneCode" column="scene_code"/>
+        <result property="operationKind" column="operation_kind"/>
+        <result property="direction" column="direction"/>
+        <result property="triggerMode" column="trigger_mode"/>
+        <result property="triggerEvent" column="trigger_event"/>
+        <result property="calculationMode" column="calculation_mode"/>
+        <result property="baseAmount" column="base_amount"/>
+        <result property="baseQuantity" column="base_quantity"/>
+        <result property="basePoints" column="base_points"/>
+        <result property="multiplier" column="multiplier"/>
+        <result property="balanceBucket" column="balance_bucket"/>
+        <result property="beforeFrozenPoints" column="before_frozen_points"/>
+        <result property="afterFrozenPoints" column="after_frozen_points"/>
+        <result property="availabilityStatus" column="availability_status"/>
+        <result property="availableAt" column="available_at"/>
+        <result property="unfrozenAt" column="unfrozen_at"/>
+        <result property="businessType" column="business_type"/>
+        <result property="businessOrderNo" column="business_order_no"/>
+        <result property="originalOrderNo" column="original_order_no"/>
+        <result property="operatorType" column="operator_type"/>
+        <result property="operatorUserId" column="operator_user_id"/>
+        <result property="operatorName" column="operator_name"/>
+        <result property="operationTime" column="operation_time"/>
+        <result property="operationDevice" column="operation_device"/>
+        <result property="orderStatus" column="order_status"/>
+        <result property="calculationSnapshot" column="calculation_snapshot"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <resultMap id="IntoBillResult" type="com.xhbookstore.system.domain.member.PointsUserIntoBillDetail">
+        <id property="id" column="id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="points" column="points"/>
+        <result property="remainingPoints" column="remaining_points"/>
+        <result property="description" column="description"/>
+        <result property="orderNoSrc" column="order_no_src"/>
+        <result property="orderNoTarget" column="order_no_target"/>
+        <result property="activityKey" column="activity_key"/>
+        <result property="activityName" column="activity_name"/>
+        <result property="eventKey" column="event_key"/>
+        <result property="eventName" column="event_name"/>
+        <result property="accountType" column="account_type"/>
+        <result property="billStatus" column="bill_status"/>
+        <result property="expiredTime" column="expired_time"/>
+        <result property="isDel" column="is_del"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="OutBillResult" type="com.xhbookstore.system.domain.member.PointsUserOutBillDetail">
+        <id property="id" column="id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="points" column="points"/>
+        <result property="remainingPoints" column="remaining_points"/>
+        <result property="description" column="description"/>
+        <result property="channel" column="channel"/>
+        <result property="orderNoSrc" column="order_no_src"/>
+        <result property="activityKey" column="activity_key"/>
+        <result property="activityName" column="activity_name"/>
+        <result property="eventKey" column="event_key"/>
+        <result property="eventName" column="event_name"/>
+        <result property="accountType" column="account_type"/>
+        <result property="billStatus" column="bill_status"/>
+        <result property="isDel" column="is_del"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <resultMap id="AllocationResult" type="com.xhbookstore.system.domain.member.PointsBatchAllocationRecord">
+        <id property="id" column="id"/>
+        <result property="intoBillId" column="into_bill_id"/>
+        <result property="outBillId" column="out_bill_id"/>
+        <result property="points" column="points"/>
+        <result property="intoOrderNo" column="into_order_no"/>
+        <result property="sourceDescription" column="source_description"/>
+        <result property="effectiveTime" column="effective_time"/>
+        <result property="expiredTime" column="expired_time"/>
+        <result property="batchOriginalPoints" column="batch_original_points"/>
+        <result property="batchRemainingPoints" column="batch_remaining_points"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="orderSelect">
+        select p.id, p.order_number, p.member_id,
+               m.name as member_name, m.card_no as member_no, m.phone as member_phone,
+               m.dept_id, d.dept_name,
+               p.amount, p.description, p.orgin_points, p.after_points,
+               p.rule_id, p.rule_code, p.rule_name, p.scene_code, p.operation_kind,
+               p.direction, p.trigger_mode, p.trigger_event, p.calculation_mode,
+               p.base_amount, p.base_quantity, p.base_points, p.multiplier,
+               p.balance_bucket, p.before_frozen_points, p.after_frozen_points,
+               p.availability_status, p.available_at, p.unfrozen_at,
+               p.business_type, p.business_order_no, p.original_order_no,
+               p.operator_type, p.operator_user_id, p.operator_name, p.operation_time,
+               p.operation_device, p.order_status, p.calculation_snapshot, p.created_at
+        from xhbs_points_order p
+        inner join member m on m.id = p.member_id
+        left join sys_dept d on d.dept_id = m.dept_id
+    </sql>
+
+    <sql id="orderWhere">
+        where p.is_del = 0
+        <if test="id != null">and p.id = #{id}</if>
+        <if test="orderNumber != null and orderNumber != ''">
+            and p.order_number like concat(#{orderNumber}, '%')
+        </if>
+        <if test="memberName != null and memberName != ''">
+            and m.name like concat('%', #{memberName}, '%')
+        </if>
+        <if test="memberNo != null and memberNo != ''">
+            and m.card_no like concat('%', #{memberNo}, '%')
+        </if>
+        <if test="memberPhone != null and memberPhone != ''">
+            and m.phone like concat('%', #{memberPhone}, '%')
+        </if>
+        <if test="deptId != null">and m.dept_id = #{deptId}</if>
+        <if test="ruleId != null">and p.rule_id = #{ruleId}</if>
+        <if test="direction != null and direction != ''">and p.direction = #{direction}</if>
+        <if test="operationKind != null and operationKind != ''">and p.operation_kind = #{operationKind}</if>
+        <if test="availabilityStatus != null and availabilityStatus != ''">
+            and p.availability_status = #{availabilityStatus}
+        </if>
+        <if test="orderStatus != null and orderStatus != ''">and p.order_status = #{orderStatus}</if>
+        <if test="params.beginTime != null and params.beginTime != ''">
+            and p.operation_time &gt;= #{params.beginTime}
+        </if>
+        <if test="params.endTime != null and params.endTime != ''">
+            and p.operation_time &lt;= #{params.endTime}
+        </if>
+        ${params.dataScope}
+    </sql>
+
+    <select id="selectOrderList" resultMap="PointsOrderRecordResult">
+        <include refid="orderSelect"/>
+        <include refid="orderWhere"/>
+        order by p.operation_time desc, p.id desc
+    </select>
+
+    <select id="selectOrder" resultMap="PointsOrderRecordResult">
+        <include refid="orderSelect"/>
+        <include refid="orderWhere"/>
+        limit 1
+    </select>
+
+    <select id="selectIntoBills" resultMap="IntoBillResult">
+        select * from xhbs_points_user_into_bill_detail
+        where order_no_src = #{orderNumber} and is_del = 0
+        order by created_at asc, id asc
+    </select>
+
+    <select id="selectOutBills" resultMap="OutBillResult">
+        select * from xhbs_points_user_out_bill_detail
+        where order_no_src = #{orderNumber} and is_del = 0
+        order by created_at asc, id asc
+    </select>
+
+    <select id="selectAllocations" resultMap="AllocationResult">
+        select a.id, a.into_bill_id, a.out_bill_id, a.points,
+               i.order_no_src as into_order_no, i.description as source_description,
+               i.created_at as effective_time, i.expired_time,
+               i.points as batch_original_points, i.remaining_points as batch_remaining_points,
+               a.created_at
+        from xhbs_points_user_bill_detail a
+        inner join xhbs_points_user_out_bill_detail o on o.id = a.out_bill_id and o.is_del = 0
+        inner join xhbs_points_user_into_bill_detail i on i.id = a.into_bill_id and i.is_del = 0
+        where o.order_no_src = #{orderNumber} and a.is_del = 0
+        order by a.created_at asc, a.id asc
+    </select>
+</mapper>

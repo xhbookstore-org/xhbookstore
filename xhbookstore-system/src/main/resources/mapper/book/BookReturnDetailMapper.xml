@@ -10,6 +10,7 @@
         <result property="borrowDetailId" column="borrow_detail_id"/>
         <result property="memberId" column="member_id"/>
         <result property="bookId" column="book_id"/>
+        <result property="bookCode" column="book_code"/>
         <result property="bookName" column="book_name"/>
         <result property="returnQty" column="return_qty"/>
         <result property="returnTime" column="return_time"/>
@@ -25,10 +26,10 @@
 
     <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookReturnDetail" useGeneratedKeys="true" keyProperty="id">
         insert into book_return_detail (return_order_no, borrow_order_id, borrow_order_no, borrow_detail_id,
-            member_id, book_id, book_name, return_qty, return_time, return_type,
+            member_id, book_id, book_code, book_name, return_qty, return_time, return_type,
             remark, dept_id, staff_id, staff_name, created_at)
         values (#{returnOrderNo}, #{borrowOrderId}, #{borrowOrderNo}, #{borrowDetailId},
-            #{memberId}, #{bookId}, #{bookName}, #{returnQty}, now(), #{returnType},
+            #{memberId}, #{bookId}, #{bookCode}, #{bookName}, #{returnQty}, now(), #{returnType},
             #{remark}, #{deptId}, #{staffId}, #{staffName}, now())
     </insert>
 

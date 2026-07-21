@@ -2,19 +2,63 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.xhbookstore.system.mapper.book.BookBorrowDetailImageMapper">
 
+    <resultMap type="com.xhbookstore.system.domain.book.BookBorrowDetailImage" id="BookBorrowDetailImageResult">
+        <id property="id" column="id"/>
+        <result property="memberId" column="member_id"/>
+        <result property="borrowDetailId" column="borrow_detail_id"/>
+        <result property="borrowOrderId" column="borrow_order_id"/>
+        <result property="borrowOrderNo" column="borrow_order_no"/>
+        <result property="imageId" column="image_id"/>
+        <result property="imageName" column="image_name"/>
+        <result property="imageUrl" column="image_url"/>
+        <result property="thumbUrl" column="thumb_url"/>
+        <result property="sortOrder" column="sort_order"/>
+        <result property="imageType" column="image_type"/>
+        <result property="imageStatus" column="image_status"/>
+        <result property="bindStatus" column="bind_status"/>
+        <result property="createStaffId" column="create_staff_id"/>
+        <result property="createStaffName" column="create_staff_name"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
     <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookBorrowDetailImage" useGeneratedKeys="true" keyProperty="id">
-        insert into book_borrow_detail_image (borrow_detail_id, borrow_order_id, borrow_order_no,
-            image_id, image_name, image_url, thumb_url, sort_order, image_type, image_status,
+        insert into book_borrow_detail_image (member_id, borrow_detail_id, borrow_order_id, borrow_order_no,
+            image_id, image_name, image_url, thumb_url, sort_order, image_type, image_status, bind_status,
             create_staff_id, create_staff_name, created_at)
-        values (#{borrowDetailId}, #{borrowOrderId}, #{borrowOrderNo},
-            #{imageId}, #{imageName}, #{imageUrl}, #{thumbUrl}, #{sortOrder}, #{imageType}, 0,
+        values (#{memberId}, #{borrowDetailId}, #{borrowOrderId}, #{borrowOrderNo},
+            #{imageId}, #{imageName}, #{imageUrl}, #{thumbUrl}, #{sortOrder}, #{imageType}, 0, #{bindStatus},
             #{createStaffId}, #{createStaffName}, now())
     </insert>
 
-    <select id="countByDetailAndType" resultType="int">
+    <select id="selectByImageIdForUpdate" resultMap="BookBorrowDetailImageResult">
+        select * from book_borrow_detail_image
+        where image_id = #{imageId} and image_status = 0
+        for update
+    </select>
+
+    <update id="bindToDetail">
+        update book_borrow_detail_image
+        set borrow_detail_id = #{borrowDetailId}, borrow_order_id = #{borrowOrderId},
+            borrow_order_no = #{borrowOrderNo}, sort_order = #{sortOrder},
+            bind_status = 'BOUND', updated_at = now()
+        where image_id = #{imageId} and member_id = #{memberId}
+          and borrow_detail_id is null and image_status = 0 and bind_status = 'TEMP'
+    </update>
+
+    <select id="countByDetail" resultType="int">
         select count(1) from book_borrow_detail_image
-        where borrow_detail_id = #{borrowDetailId}
-          and image_type = #{imageType}
-          and image_status = 0
+        where borrow_detail_id = #{borrowDetailId} and image_status = 0
+    </select>
+
+    <select id="maxSortByDetail" resultType="int">
+        select coalesce(max(sort_order), 0) from book_borrow_detail_image
+        where borrow_detail_id = #{borrowDetailId} and image_status = 0
+    </select>
+
+    <select id="selectByDetailId" resultMap="BookBorrowDetailImageResult">
+        select * from book_borrow_detail_image
+        where borrow_detail_id = #{borrowDetailId} and image_status = 0
+        order by sort_order asc, id asc
     </select>
 </mapper>

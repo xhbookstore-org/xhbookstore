@@ -1,36 +1,41 @@
 package com.xhbookstore.system.service.book.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import com.xhbookstore.system.domain.book.BookBorrowDetail;
+import com.xhbookstore.system.domain.book.BookBorrowDetailImage;
 import com.xhbookstore.system.domain.book.BookBorrowOrder;
-import com.xhbookstore.system.domain.book.BookInfo;
 import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.mapper.book.BookBorrowDetailImageMapper;
 import com.xhbookstore.system.mapper.book.BookBorrowDetailMapper;
 import com.xhbookstore.system.mapper.book.BookBorrowLogMapper;
 import com.xhbookstore.system.mapper.book.BookBorrowOrderMapper;
-import com.xhbookstore.system.mapper.book.BookInfoHistoryMapper;
-import com.xhbookstore.system.mapper.book.BookInfoMapper;
 import com.xhbookstore.system.mapper.book.BookPurchaseLogMapper;
 import com.xhbookstore.system.mapper.book.BookPurchaseOrderMapper;
 import com.xhbookstore.system.mapper.book.BookReturnDetailMapper;
 import com.xhbookstore.system.mapper.book.BookReturnLogMapper;
 import com.xhbookstore.system.mapper.member.MemberMapper;
 import com.xhbookstore.system.service.book.BookBorrowException;
+import com.xhbookstore.system.service.member.IPointsService;
 
 @ExtendWith(MockitoExtension.class)
 class BookBorrowServiceImplTest {
@@ -40,47 +45,72 @@ class BookBorrowServiceImplTest {
     @Mock private BookReturnDetailMapper returnMapper;
     @Mock private BookBorrowDetailImageMapper detailImageMapper;
     @Mock private MemberMapper memberMapper;
-    @Mock private BookInfoMapper bookInfoMapper;
     @Mock private BookPurchaseOrderMapper purchaseOrderMapper;
     @Mock private BookBorrowLogMapper borrowLogMapper;
     @Mock private BookReturnLogMapper returnLogMapper;
     @Mock private BookPurchaseLogMapper purchaseLogMapper;
-    @Mock private BookInfoHistoryMapper bookInfoHistoryMapper;
+    @Mock private IPointsService pointsService;
 
     @InjectMocks private BookBorrowServiceImpl service;
 
     @Test
-    void createBorrowOrderDoesNotWriteWhenSecondBookFailsValidation() {
-        Member member = new Member();
-        member.setId(1);
+    void createBorrowOrderCreatesOneDetailPerCopyAndBindsImages() {
+        Member member = member(1);
         when(memberMapper.selectMemberById(1)).thenReturn(member);
-        when(bookInfoMapper.selectByIdForUpdate(1L)).thenReturn(book(1L, "first", 5, 5));
-        when(bookInfoMapper.selectByIdForUpdate(2L)).thenReturn(book(2L, "second", 0, 5));
+        when(detailImageMapper.selectByImageIdForUpdate("IMG-1")).thenReturn(tempImage("IMG-1", 1, "9"));
+        when(detailImageMapper.bindToDetail(eq("IMG-1"), eq(1), any(), any(), any(), eq(1))).thenReturn(1);
+        when(pointsService.grantBorrowPoints(eq(1), any(), eq(2), eq(3L)))
+                .thenReturn(Map.of("status", "SUCCESS", "points", 20));
+        doAnswer(invocation -> {
+            ((BookBorrowOrder) invocation.getArgument(0)).setId(100L);
+            return 1;
+        }).when(orderMapper).insert(any());
+        AtomicLong detailIds = new AtomicLong(200);
+        doAnswer(invocation -> {
+            ((BookBorrowDetail) invocation.getArgument(0)).setId(detailIds.getAndIncrement());
+            return 1;
+        }).when(detailMapper).insert(any());
 
-        List<Map<String, Object>> books = List.of(
-                Map.of("bookId", 1L, "borrowQty", 1),
-                Map.of("bookId", 2L, "borrowQty", 1));
+        service.createBorrowOrder(1, List.of(
+                Map.of("bookCode", "A-001", "bookName", "同名书", "imageIds", List.of("IMG-1")),
+                Map.of("bookCode", "A-002", "bookName", "同名书")),
+                "remark", "9", "张店员", 3L);
 
-        assertThatThrownBy(() -> service.createBorrowOrder(1, books, null, "1", "staff", 1L, null))
+        ArgumentCaptor<BookBorrowDetail> details = ArgumentCaptor.forClass(BookBorrowDetail.class);
+        verify(detailMapper, org.mockito.Mockito.times(2)).insert(details.capture());
+        assertThat(details.getAllValues()).extracting(BookBorrowDetail::getBookCode)
+                .containsExactly("A-001", "A-002");
+        assertThat(details.getAllValues()).extracting(BookBorrowDetail::getBorrowQty)
+                .containsOnly(1);
+        verify(detailImageMapper).bindToDetail(eq("IMG-1"), eq(1), eq(200L), eq(100L), any(), eq(1));
+        verify(pointsService).grantBorrowPoints(eq(1), any(), eq(2), eq(3L));
+    }
+
+    @Test
+    void createBorrowOrderRejectsMoreThanThreeImagesBeforeWriting() {
+        when(memberMapper.selectMemberById(1)).thenReturn(member(1));
+        Map<String, Object> book = Map.of(
+                "bookCode", "A-001", "bookName", "书",
+                "imageIds", List.of("1", "2", "3", "4"));
+
+        assertThatThrownBy(() -> service.createBorrowOrder(1, List.of(book), null, "9", "staff", 1L))
                 .isInstanceOf(BookBorrowException.class)
-                .hasMessageContaining("Not enough lendable stock");
+                .hasMessageContaining("at most 3 images");
 
-        verify(bookInfoMapper, never()).decreaseLendableQty(any(), any());
         verify(orderMapper, never()).insert(any());
         verify(detailMapper, never()).insert(any());
     }
 
     @Test
-    void returnBookDoesNotWriteWhenSecondDetailFailsValidation() {
+    void returnBookDoesNotWriteWhenSecondDetailIsAlreadySettled() {
         BookBorrowOrder order = order(10L, "DY1");
         when(orderMapper.selectByOrderNo("DY1")).thenReturn(order);
-        when(detailMapper.selectByIdForUpdate(1L)).thenReturn(detail(1L, 10L, "DY1", 101L, 2, 0, 0));
-        when(detailMapper.selectByIdForUpdate(2L)).thenReturn(detail(2L, 10L, "DY1", 102L, 1, 1, 0));
-        when(bookInfoMapper.selectByIdForUpdate(101L)).thenReturn(book(101L, "first", 1, 1));
+        when(detailMapper.selectByIdForUpdate(1L)).thenReturn(detail(1L, 10L, "DY1", 1, 0, 0));
+        when(detailMapper.selectByIdForUpdate(2L)).thenReturn(detail(2L, 10L, "DY1", 1, 1, 0));
 
         List<Map<String, Object>> items = List.of(
-                Map.of("borrowDetailId", 1L, "returnQty", 1),
-                Map.of("borrowDetailId", 2L, "returnQty", 1));
+                Map.of("borrowDetailId", 1L),
+                Map.of("borrowDetailId", 2L));
 
         assertThatThrownBy(() -> service.returnBook("DY1", items, "1", "staff", 1L))
                 .isInstanceOf(BookBorrowException.class)
@@ -88,40 +118,56 @@ class BookBorrowServiceImplTest {
 
         verify(returnMapper, never()).insert(any());
         verify(detailMapper, never()).updateReturnInfo(any());
-        verify(bookInfoMapper, never()).increaseLendableQty(any(), any());
     }
 
     @Test
-    void borrowToPurchaseDoesNotWriteWhenSecondBookHasInsufficientStock() {
-        BookBorrowOrder order = order(10L, "DY1");
-        BookBorrowDetail first = detail(1L, 10L, "DY1", 101L, 1, 0, 0);
-        BookBorrowDetail second = detail(2L, 10L, "DY1", 102L, 1, 0, 0);
-        when(detailMapper.selectByIdForUpdate(1L)).thenReturn(first);
-        when(detailMapper.selectByIdForUpdate(2L)).thenReturn(second);
-        when(orderMapper.selectByOrderNo("DY1")).thenReturn(order);
-        when(bookInfoMapper.selectByIdForUpdate(101L)).thenReturn(book(101L, "first", 1, 2));
-        when(bookInfoMapper.selectByIdForUpdate(102L)).thenReturn(book(102L, "second", 1, 0));
+    void borrowToPurchaseRequiresPriceBeforeWriting() {
+        BookBorrowDetail detail = detail(1L, 10L, "DY1", 1, 0, 0);
+        when(detailMapper.selectByIdForUpdate(1L)).thenReturn(detail);
+        when(orderMapper.selectByOrderNo("DY1")).thenReturn(order(10L, "DY1"));
 
-        List<Map<String, Object>> items = List.of(
-                Map.of("borrowDetailId", 1L, "purchaseQty", 1),
-                Map.of("borrowDetailId", 2L, "purchaseQty", 1));
-
-        assertThatThrownBy(() -> service.borrowToPurchase(items, "1", "staff", 1L))
+        assertThatThrownBy(() -> service.borrowToPurchase(
+                List.of(Map.of("borrowDetailId", 1L, "purchaseQty", 1)), "1", "staff", 1L))
                 .isInstanceOf(BookBorrowException.class)
-                .hasMessageContaining("Not enough stock");
+                .hasMessageContaining("Unit price is required");
 
         verify(purchaseOrderMapper, never()).insert(any());
         verify(detailMapper, never()).updatePurchaseInfo(any());
-        verify(bookInfoMapper, never()).decreaseStockQty(any(), any());
     }
 
-    private BookInfo book(Long id, String name, int lendableQty, int stockQty) {
-        BookInfo book = new BookInfo();
-        book.setId(id);
-        book.setBookName(name);
-        book.setLendableQty(lendableQty);
-        book.setStockQty(stockQty);
-        return book;
+    @Test
+    void borrowToPurchaseAcceptsZeroPriceWithoutBookMasterData() {
+        BookBorrowDetail detail = detail(1L, 10L, "DY1", 1, 0, 0);
+        BookBorrowOrder order = order(10L, "DY1");
+        order.setMemberId(1);
+        order.setMemberCardNo("CARD");
+        when(detailMapper.selectByIdForUpdate(1L)).thenReturn(detail);
+        when(detailMapper.selectById(1L)).thenReturn(detail(1L, 10L, "DY1", 1, 0, 1));
+        when(orderMapper.selectByOrderNo("DY1")).thenReturn(order);
+        when(detailMapper.selectByOrderId(10L)).thenReturn(List.of(detail(1L, 10L, "DY1", 1, 0, 1)));
+
+        service.borrowToPurchase(List.of(Map.of(
+                "borrowDetailId", 1L, "purchaseQty", 1, "unitPrice", BigDecimal.ZERO)),
+                "1", "staff", 1L);
+
+        verify(purchaseOrderMapper).insert(any());
+        verify(detailMapper).updatePurchaseInfo(any());
+    }
+
+    private Member member(int id) {
+        Member member = new Member();
+        member.setId(id);
+        member.setCardNo("CARD-" + id);
+        return member;
+    }
+
+    private BookBorrowDetailImage tempImage(String imageId, int memberId, String staffId) {
+        BookBorrowDetailImage image = new BookBorrowDetailImage();
+        image.setImageId(imageId);
+        image.setMemberId(memberId);
+        image.setBindStatus("TEMP");
+        image.setCreateStaffId(staffId);
+        return image;
     }
 
     private BookBorrowOrder order(Long id, String orderNo) {
@@ -131,14 +177,14 @@ class BookBorrowServiceImplTest {
         return order;
     }
 
-    private BookBorrowDetail detail(Long id, Long orderId, String orderNo, Long bookId,
+    private BookBorrowDetail detail(Long id, Long orderId, String orderNo,
                                     int borrowQty, int returnedQty, int purchaseQty) {
         BookBorrowDetail detail = new BookBorrowDetail();
         detail.setId(id);
         detail.setBorrowOrderId(orderId);
         detail.setBorrowOrderNo(orderNo);
-        detail.setBookId(bookId);
-        detail.setBookName("book-" + bookId);
+        detail.setBookCode("BOOK-" + id);
+        detail.setBookName("book-" + id);
         detail.setBorrowQty(borrowQty);
         detail.setReturnedQty(returnedQty);
         detail.setPurchaseQty(purchaseQty);

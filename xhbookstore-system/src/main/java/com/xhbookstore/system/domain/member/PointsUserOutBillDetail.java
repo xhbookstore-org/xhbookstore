@@ -1,6 +1,9 @@
 package com.xhbookstore.system.domain.member;
 
 import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
+import com.fasterxml.jackson.annotation.JsonFormat;
 
 public class PointsUserOutBillDetail {
     private Long id;
@@ -17,8 +20,11 @@ public class PointsUserOutBillDetail {
     private Integer accountType;
     private Integer billStatus;
     private Integer isDel;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date createdAt;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date updatedAt;
+    private List<PointsBatchAllocationRecord> allocations = new ArrayList<>();
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -52,4 +58,6 @@ public class PointsUserOutBillDetail {
     public void setCreatedAt(Date createdAt) { this.createdAt = createdAt; }
     public Date getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Date updatedAt) { this.updatedAt = updatedAt; }
+    public List<PointsBatchAllocationRecord> getAllocations() { return allocations; }
+    public void setAllocations(List<PointsBatchAllocationRecord> allocations) { this.allocations = allocations; }
 }

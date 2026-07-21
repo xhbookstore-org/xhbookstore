@@ -17,6 +17,7 @@ import com.xhbookstore.system.domain.member.Member;
 import com.xhbookstore.system.domain.member.MemberExport;
 import com.xhbookstore.system.domain.member.MemberExt;
 import com.xhbookstore.system.domain.member.PointsOrder;
+import com.xhbookstore.system.domain.member.PointsRule;
 import com.xhbookstore.system.mapper.member.CardTypeMapper;
 import com.xhbookstore.system.service.member.IMemberService;
 import com.xhbookstore.system.service.member.IPointsService;
@@ -109,6 +110,21 @@ public class MemberController extends BaseController {
     public AjaxResult pointsList(@PathVariable Integer id) {
         List<PointsOrder> list = pointsService.selectByMemberId(id);
         return AjaxResult.success(list);
+    }
+
+    @PreAuthorize("@ss.hasPermi('member:member:points')")
+    @GetMapping("/{id}/points/rules")
+    public AjaxResult pointsRules(@PathVariable Integer id, @RequestParam String direction) {
+        List<PointsRule> list = pointsService.selectManualFixedRules(id, direction);
+        return AjaxResult.success(list);
+    }
+
+    @PreAuthorize("@ss.hasPermi('member:member:points')")
+    @Log(title = "会员积分", businessType = BusinessType.UPDATE)
+    @PostMapping("/{id}/points/adjust")
+    public AjaxResult adjustPoints(@PathVariable Integer id, @RequestBody PointsAdjustRequest request) {
+        return pointsService.adjustPointsByRule(id, request.getRuleId(), request.getPoints(), request.getDescription(),
+                getUserId(), getUsername(), "PC");
     }
 
     @PreAuthorize("@ss.hasPermi('member:member:points')")
