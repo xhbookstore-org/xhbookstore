@@ -125,6 +125,7 @@ public class SysDeptController extends BaseController
         editable.setDeptName(dept.getDeptName());
         editable.setOrderNum(dept.getOrderNum());
         editable.setStatus(dept.getStatus());
+        editable.setQrCodeImageUrl(dept.getQrCodeImageUrl());
         if (StringUtils.isBlank(editable.getDeptName()) || editable.getOrderNum() == null || StringUtils.isBlank(editable.getStatus()))
         {
             return error("部门名称、部门状态和显示排序不能为空");

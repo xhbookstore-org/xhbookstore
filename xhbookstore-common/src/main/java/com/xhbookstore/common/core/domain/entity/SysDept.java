@@ -52,6 +52,9 @@ public class SysDept extends BaseEntity
     /** ERP部门ID */
     private Long erpDeptId;
 
+    /** 门店二维码图片地址 */
+    private String qrCodeImageUrl;
+
     /** 父部门名称 */
     private String parentName;
     
@@ -175,6 +178,16 @@ public class SysDept extends BaseEntity
         this.erpDeptId = erpDeptId;
     }
 
+    public String getQrCodeImageUrl()
+    {
+        return qrCodeImageUrl;
+    }
+
+    public void setQrCodeImageUrl(String qrCodeImageUrl)
+    {
+        this.qrCodeImageUrl = qrCodeImageUrl;
+    }
+
     public String getParentName()
     {
         return parentName;
@@ -209,6 +222,7 @@ public class SysDept extends BaseEntity
             .append("status", getStatus())
             .append("delFlag", getDelFlag())
             .append("erpDeptId", getErpDeptId())
+            .append("qrCodeImageUrl", getQrCodeImageUrl())
             .append("createBy", getCreateBy())
             .append("createTime", getCreateTime())
             .append("updateBy", getUpdateBy())

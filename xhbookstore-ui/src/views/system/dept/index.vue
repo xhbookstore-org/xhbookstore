@@ -157,6 +157,13 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <el-row>
+          <el-col :span="24">
+            <el-form-item label="门店二维码" prop="qrCodeImageUrl">
+              <ImageUpload v-model="form.qrCodeImageUrl" :limit="1" :file-size="5" :is-show-tip="true" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <div slot="footer" class="dialog-footer">
         <el-button type="primary" @click="submitForm">确 定</el-button>
@@ -273,6 +280,7 @@ export default {
         orderNum: undefined,
         leader: undefined,
         erpDeptId: undefined,
+        qrCodeImageUrl: undefined,
         phone: undefined,
         email: undefined,
         status: "0"
