@@ -67,6 +67,23 @@ public class SecurityUtils
     }
 
     /**
+     * 获取当前员工的姓名。系统账号只用于登录和鉴权，业务单据、会员最近操作人等
+     * 面向门店人员展示的字段必须记录员工姓名。
+     */
+    public static String getRealName()
+    {
+        try
+        {
+            String nickName = getLoginUser().getUser().getNickName();
+            return StringUtils.isNotBlank(nickName) ? nickName : getUsername();
+        }
+        catch (Exception e)
+        {
+            return getUsername();
+        }
+    }
+
+    /**
      * 获取用户
      **/
     public static LoginUser getLoginUser()

@@ -5,6 +5,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.xhbookstore.common.annotation.Log;
@@ -21,8 +22,14 @@ public class MemberDashboardController extends BaseController {
 
     @GetMapping("/overview")
     @PreAuthorize("@ss.hasPermi('dashboard:member:view')")
-    public AjaxResult overview() {
-        return success(memberDashboardService.getOverview());
+    public AjaxResult overview(@RequestParam(required = false) Long deptId) {
+        return success(memberDashboardService.getOverview(deptId));
+    }
+
+    @GetMapping("/depts")
+    @PreAuthorize("@ss.hasPermi('dashboard:member:view')")
+    public AjaxResult depts() {
+        return success(memberDashboardService.getVisibleDepts());
     }
 
     @Log(title = "会员首页统计", businessType = BusinessType.UPDATE)

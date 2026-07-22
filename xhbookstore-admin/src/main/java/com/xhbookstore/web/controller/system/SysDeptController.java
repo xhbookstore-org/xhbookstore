@@ -77,6 +77,15 @@ public class SysDeptController extends BaseController
     @PostMapping
     public AjaxResult add(@Validated @RequestBody SysDept dept)
     {
+        if (dept.getParentId() == null || dept.getParentId() == 0)
+        {
+            return error("上级部门必须选择一级部门");
+        }
+        SysDept parent = deptService.selectDeptById(dept.getParentId());
+        if (parent == null || parent.getParentId() == null || parent.getParentId() != 0)
+        {
+            return error("上级部门只能选择一级部门");
+        }
         if (!deptService.checkDeptNameUnique(dept))
         {
             return error("新增部门'" + dept.getDeptName() + "'失败，部门名称已存在");
@@ -85,7 +94,7 @@ public class SysDeptController extends BaseController
         {
             return error("新增部门'" + dept.getDeptName() + "'失败，ERP门店ID已存在");
         }
-        dept.setCreateBy(getUsername());
+        dept.setCreateBy(getRealName());
         return toAjax(deptService.insertDept(dept));
     }
 
@@ -95,28 +104,41 @@ public class SysDeptController extends BaseController
     @PreAuthorize("@ss.hasPermi('system:dept:edit')")
     @Log(title = "部门管理", businessType = BusinessType.UPDATE)
     @PutMapping
-    public AjaxResult edit(@Validated @RequestBody SysDept dept)
+    public AjaxResult edit(@RequestBody SysDept dept)
     {
         Long deptId = dept.getDeptId();
+        if (deptId == null)
+        {
+            return error("部门编号不能为空");
+        }
         deptService.checkDeptDataScope(deptId);
-        if (!deptService.checkDeptNameUnique(dept))
+        SysDept current = deptService.selectDeptById(deptId);
+        if (current == null)
         {
-            return error("修改部门'" + dept.getDeptName() + "'失败，部门名称已存在");
+            return error("部门不存在");
         }
-        else if (!deptService.checkErpDeptIdUnique(dept))
+        // 编辑页只允许改名称、状态和显示排序。父级、ERP ID 和联系方式均为主数据，
+        // 不接受前端传值，避免绕过页面限制修改组织结构或 ERP 映射。
+        SysDept editable = new SysDept();
+        editable.setDeptId(deptId);
+        editable.setParentId(current.getParentId());
+        editable.setDeptName(dept.getDeptName());
+        editable.setOrderNum(dept.getOrderNum());
+        editable.setStatus(dept.getStatus());
+        if (StringUtils.isBlank(editable.getDeptName()) || editable.getOrderNum() == null || StringUtils.isBlank(editable.getStatus()))
         {
-            return error("修改部门'" + dept.getDeptName() + "'失败，ERP门店ID已存在");
+            return error("部门名称、部门状态和显示排序不能为空");
         }
-        else if (dept.getParentId().equals(deptId))
+        if (!deptService.checkDeptNameUnique(editable))
         {
-            return error("修改部门'" + dept.getDeptName() + "'失败，上级部门不能是自己");
+            return error("修改部门'" + editable.getDeptName() + "'失败，部门名称已存在");
         }
-        else if (StringUtils.equals(UserConstants.DEPT_DISABLE, dept.getStatus()) && deptService.selectNormalChildrenDeptById(deptId) > 0)
+        else if (StringUtils.equals(UserConstants.DEPT_DISABLE, editable.getStatus()) && deptService.selectNormalChildrenDeptById(deptId) > 0)
         {
             return error("该部门包含未停用的子部门！");
         }
-        dept.setUpdateBy(getUsername());
-        return toAjax(deptService.updateDept(dept));
+        editable.setUpdateBy(getRealName());
+        return toAjax(deptService.updateDept(editable));
     }
 
     /**

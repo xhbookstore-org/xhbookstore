@@ -124,7 +124,7 @@ public class MemberController extends BaseController {
     @PostMapping("/{id}/points/adjust")
     public AjaxResult adjustPoints(@PathVariable Integer id, @RequestBody PointsAdjustRequest request) {
         return pointsService.adjustPointsByRule(id, request.getRuleId(), request.getPoints(), request.getDescription(),
-                getUserId(), getUsername(), "PC");
+                getUserId(), getRealName(), "PC");
     }
 
     @PreAuthorize("@ss.hasPermi('member:member:points')")
@@ -132,7 +132,7 @@ public class MemberController extends BaseController {
     @PostMapping("/{id}/points")
     public AjaxResult addPoints(@PathVariable Integer id, @RequestBody PointsAddRequest request) {
         return pointsService.addPoints(id, request.getPoints(), request.getDescription(),
-                getLoginUser().getUsername(), "PC");
+                getRealName(), "PC");
     }
 
     @PreAuthorize("@ss.hasPermi('member:member:import')")
@@ -143,7 +143,7 @@ public class MemberController extends BaseController {
         if (deptId == null) {
             deptId = getLoginUser().getDeptId();
         }
-        return memberService.importMembers(file, deptId, getUsername());
+        return memberService.importMembers(file, deptId, getRealName());
     }
 
     @PreAuthorize("@ss.hasPermi('member:member:export')")

@@ -67,6 +67,9 @@
       :tree-props="{children: 'children', hasChildren: 'hasChildren'}"
     >
       <el-table-column prop="deptName" label="部门名称" width="260"></el-table-column>
+      <el-table-column prop="erpDeptId" label="ERP部门ID" width="130" align="center">
+        <template slot-scope="scope">{{ scope.row.erpDeptId || '-' }}</template>
+      </el-table-column>
       <el-table-column prop="orderNum" label="排序" width="200">
         <template slot-scope="scope">
           <el-input-number v-model="scope.row.orderNum" controls-position="right" :min="0" size="mini" style="width: 88px" />
@@ -91,21 +94,6 @@
             @click="handleUpdate(scope.row)"
             v-hasPermi="['system:dept:edit']"
           >修改</el-button>
-          <el-button
-            size="mini"
-            type="text"
-            icon="el-icon-plus"
-            @click="handleAdd(scope.row)"
-            v-hasPermi="['system:dept:add']"
-          >新增</el-button>
-          <el-button
-            v-if="scope.row.parentId != 0"
-            size="mini"
-            type="text"
-            icon="el-icon-delete"
-            @click="handleDelete(scope.row)"
-            v-hasPermi="['system:dept:remove']"
-          >删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -114,9 +102,9 @@
     <el-dialog :title="title" :visible.sync="open" width="600px" append-to-body>
       <el-form ref="form" :model="form" :rules="rules" label-width="80px">
         <el-row>
-          <el-col :span="24" v-if="form.parentId !== 0">
+          <el-col :span="24" v-if="!isEdit">
             <el-form-item label="上级部门" prop="parentId">
-              <treeselect v-model="form.parentId" :options="deptOptions" :normalizer="normalizer" placeholder="选择上级部门" />
+              <treeselect v-model="form.parentId" :options="deptOptions" :normalizer="normalizer" placeholder="请选择一级部门" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -132,7 +120,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row>
+        <el-row v-if="!isEdit">
           <el-col :span="12">
             <el-form-item label="负责人" prop="leader">
               <el-input v-model="form.leader" placeholder="请输入负责人" maxlength="20" />
@@ -144,7 +132,7 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row>
+        <el-row v-if="!isEdit">
           <el-col :span="12">
             <el-form-item label="邮箱" prop="email">
               <el-input v-model="form.email" placeholder="请输入邮箱" maxlength="50" />
@@ -153,7 +141,7 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="ERP部门ID" prop="erpDeptId">
+            <el-form-item v-if="!isEdit" label="ERP部门ID" prop="erpDeptId">
               <el-input v-model="form.erpDeptId" placeholder="请输入ERP部门ID" maxlength="20" />
             </el-form-item>
           </el-col>
@@ -179,7 +167,7 @@
 </template>
 
 <script>
-import { listDept, getDept, delDept, addDept, updateDept, updateDeptSort, listDeptExcludeChild } from "@/api/system/dept"
+import { listDept, getDept, addDept, updateDept, updateDeptSort } from "@/api/system/dept"
 import Treeselect from "@riophae/vue-treeselect"
 import "@riophae/vue-treeselect/dist/vue-treeselect.css"
 
@@ -199,6 +187,7 @@ export default {
       deptOptions: [],
       // 弹出层标题
       title: "",
+      isEdit: false,
       // 是否显示弹出层
       open: false,
       // 是否展开，默认全部展开
@@ -300,15 +289,14 @@ export default {
       this.handleQuery()
     },
     /** 新增按钮操作 */
-    handleAdd(row) {
+    handleAdd() {
       this.reset()
-      if (row != undefined) {
-        this.form.parentId = row.deptId
-      }
+      this.isEdit = false
       this.open = true
       this.title = "添加部门"
       listDept().then(response => {
-        this.deptOptions = this.handleTree(response.data, "deptId")
+        // 新建部门仅可挂在一级部门下，不能继续增加组织层级。
+        this.deptOptions = (response.data || []).filter(item => Number(item.parentId) === 0)
       })
     },
     /** 展开/折叠操作 */
@@ -324,15 +312,9 @@ export default {
       this.reset()
       getDept(row.deptId).then(response => {
         this.form = response.data
+        this.isEdit = true
         this.open = true
         this.title = "修改部门"
-        listDeptExcludeChild(row.deptId).then(response => {
-          this.deptOptions = this.handleTree(response.data, "deptId")
-          if (this.deptOptions.length == 0) {
-            const noResultsOptions = { deptId: this.form.parentId, deptName: this.form.parentName, children: [] }
-            this.deptOptions.push(noResultsOptions)
-          }
-        })
       })
     },
     /** 提交按钮 */
@@ -389,15 +371,6 @@ export default {
         this.recordOriginalOrders(this.deptList)
       })
     },
-    /** 删除按钮操作 */
-    handleDelete(row) {
-      this.$modal.confirm('是否确认删除名称为"' + row.deptName + '"的数据项？').then(function() {
-        return delDept(row.deptId)
-      }).then(() => {
-        this.getList()
-        this.$modal.msgSuccess("删除成功")
-      }).catch(() => {})
-    }
   }
 }
 </script>

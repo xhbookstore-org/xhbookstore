@@ -122,7 +122,7 @@ public class MemberServiceImpl implements IMemberService {
         member.setCurrentPoints(0);
         member.setSource("manual");
         member.setSyncErp(0);
-        member.setLastOperator(SecurityUtils.getUsername());
+        member.setLastOperator(SecurityUtils.getRealName());
 
         // Calculate valid_date based on card type
         CardType cardType = cardTypeMapper.selectById(member.getCardTypeId());
@@ -139,7 +139,7 @@ public class MemberServiceImpl implements IMemberService {
             ext.setJoinDate(new Date());
             ext.setTotalPoints(0);
             ext.setLevelPoints(0);
-            ext.setBusinessStaffName(SecurityUtils.getUsername());
+            ext.setBusinessStaffName(SecurityUtils.getRealName());
             memberExtMapper.insertMemberExt(ext);
         }
 
@@ -174,7 +174,7 @@ public class MemberServiceImpl implements IMemberService {
             member.setValidDate(cal.getTime());
         }
 
-        member.setLastOperator(SecurityUtils.getUsername());
+        member.setLastOperator(SecurityUtils.getRealName());
         memberMapper.updateMember(member);
 
         if (ext != null) {

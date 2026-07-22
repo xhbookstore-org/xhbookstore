@@ -11,4 +11,6 @@ public interface MemberDashboardMapper {
     List<MemberDashboardDeptStats> selectDeptMemberCodeStats();
 
     MemberDashboardLoginStats selectLoginStats();
+
+    MemberDashboardLoginStats selectLoginStatsByDeptId(Long deptId);
 }

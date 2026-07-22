@@ -29,7 +29,7 @@
       <el-form-item label="订单状态" prop="orderStatus">
         <el-select v-model="queryParams.orderStatus" placeholder="请输入" clearable>
           <el-option label="已支付" :value="1" />
-          <el-option label="已取消" :value="2" />
+          <el-option label="已退款" :value="2" />
         </el-select>
       </el-form-item>
       <el-form-item label="门店" prop="deptId">
@@ -163,7 +163,7 @@ export default {
       return (this.queryParams.pageNum - 1) * this.queryParams.pageSize + index + 1
     },
     orderStatusText(status) {
-      return { 1: '已支付', 2: '已取消' }[status] || '未知'
+      return { 1: '已支付', 2: '已退款' }[status] || '未知'
     },
     paymentTypeText(type) {
       return { STAFF_INPUT: '员工录入', ERP_IMPORT: 'ERP导入', CASH: '现金', OTHER: '其他' }[type] || (type || '-')
@@ -171,6 +171,5 @@ export default {
   }
 }
 </script>
-
 
 

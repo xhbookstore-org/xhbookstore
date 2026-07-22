@@ -8,5 +8,7 @@ public interface MemberCardOrderMapper {
     int bindMemberCard(MemberCardOrder order);
     MemberCardOrder selectByOrderNo(String orderNo);
     MemberCardOrder selectByMemberCardId(Long memberCardId);
+    int updateOrderStatusByMemberCardId(@org.apache.ibatis.annotations.Param("memberCardId") Long memberCardId,
+                                        @org.apache.ibatis.annotations.Param("orderStatus") Integer orderStatus);
     List<MemberCardOrder> selectList(MemberCardOrder order);
 }

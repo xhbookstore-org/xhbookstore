@@ -53,6 +53,12 @@
         select * from member_card_order where member_card_id = #{memberCardId} and is_del = 0 limit 1
     </select>
 
+    <update id="updateOrderStatusByMemberCardId">
+        update member_card_order
+        set order_status = #{orderStatus}, updated_at = now()
+        where member_card_id = #{memberCardId} and is_del = 0
+    </update>
+
     <select id="selectList" parameterType="com.xhbookstore.system.domain.member.MemberCardOrder" resultMap="MemberCardOrderResult">
         select o.*,
                coalesce(nullif(o.member_name, ''), m.name) as member_name,

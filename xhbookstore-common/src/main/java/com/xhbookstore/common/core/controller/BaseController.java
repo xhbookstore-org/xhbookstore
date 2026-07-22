@@ -199,4 +199,10 @@ public class BaseController
     {
         return getLoginUser().getUsername();
     }
+
+    /** 获取登录员工姓名，用于业务单据和操作记录展示。 */
+    public String getRealName()
+    {
+        return SecurityUtils.getRealName();
+    }
 }

@@ -85,7 +85,8 @@ public class MemberCardController extends BaseController {
     @GetMapping("/member/{memberId}/list")
     public TableDataInfo memberCardList(@PathVariable Integer memberId) {
         startPage();
-        List<MemberCard> list = memberCardService.refreshMemberCardStatus(memberId, getUsername(), getUsername(), "ADMIN");
+        List<MemberCard> list = memberCardService.refreshMemberCardStatus(memberId,
+                String.valueOf(getUserId()), getRealName(), "ADMIN");
         return getDataTable(list);
     }
 
@@ -104,7 +105,7 @@ public class MemberCardController extends BaseController {
         BigDecimal refundAmount = toBigDecimal(body.get("refundAmount"));
         return memberCardService.refundCard(memberCardId, refundAmount,
                 stringValue(body.get("refundType")), stringValue(body.get("reason")),
-                String.valueOf(getUserId()), getUsername(), getDeptId(), stringValue(body.get("remark")));
+                String.valueOf(getUserId()), getRealName(), getDeptId(), stringValue(body.get("remark")));
     }
 
     private String stringValue(Object value) {

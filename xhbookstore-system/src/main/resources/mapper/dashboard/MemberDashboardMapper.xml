@@ -75,4 +75,17 @@
         where request_uri = '/api/mp/v1/auth/wechat-phone-login'
           and response_code = 0
     </select>
+
+    <select id="selectLoginStatsByDeptId" parameterType="Long" resultType="com.xhbookstore.system.domain.dashboard.MemberDashboardLoginStats">
+        select
+            count(1) as totalLoginCount,
+            coalesce(sum(case when l.created_at &gt;= date_format(curdate(), '%Y-01-01') then 1 else 0 end), 0) as yearLoginCount,
+            coalesce(sum(case when l.created_at &gt;= date_format(curdate(), '%Y-%m-01') then 1 else 0 end), 0) as monthLoginCount,
+            coalesce(sum(case when l.created_at &gt;= date_sub(curdate(), interval 1 day) and l.created_at &lt; curdate() then 1 else 0 end), 0) as yesterdayLoginCount
+        from xhbs_api_log l
+        inner join member m on l.user_id = concat('M', m.id)
+        where l.request_uri = '/api/mp/v1/auth/wechat-phone-login'
+          and l.response_code = 0
+          and m.dept_id = #{deptId}
+    </select>
 </mapper>

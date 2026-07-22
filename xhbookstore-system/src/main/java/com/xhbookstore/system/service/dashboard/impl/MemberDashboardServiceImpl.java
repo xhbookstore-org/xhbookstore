@@ -23,6 +23,7 @@ import com.xhbookstore.common.core.domain.entity.SysUser;
 import com.xhbookstore.common.core.redis.RedisCache;
 import com.xhbookstore.common.utils.SecurityUtils;
 import com.xhbookstore.common.utils.StringUtils;
+import com.xhbookstore.common.exception.ServiceException;
 import com.xhbookstore.system.domain.dashboard.MemberDashboardDeptStats;
 import com.xhbookstore.system.domain.dashboard.MemberDashboardLoginStats;
 import com.xhbookstore.system.domain.dashboard.MemberDashboardOverview;
@@ -50,14 +51,26 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
 
     @Override
     public MemberDashboardOverview getOverview() {
+        return getOverview(null);
+    }
+
+    @Override
+    public MemberDashboardOverview getOverview(Long selectedDeptId) {
         List<Long> visibleDeptIds = resolveVisibleDeptIds();
+        List<Long> effectiveDeptIds = visibleDeptIds;
+        if (selectedDeptId != null) {
+            if (!visibleDeptIds.contains(selectedDeptId)) {
+                throw new ServiceException("无权查看该门店数据");
+            }
+            effectiveDeptIds = Collections.singletonList(selectedDeptId);
+        }
         if (redisCache.getCacheObject(LAST_REFRESH_AT_KEY) == null) {
             refreshStatsWithLock();
         }
 
         MemberDashboardDeptStats merged = new MemberDashboardDeptStats();
         int missing = 0;
-        for (Long deptId : visibleDeptIds) {
+        for (Long deptId : effectiveDeptIds) {
             MemberDashboardDeptStats item = redisCache.getCacheObject(DEPT_KEY_PREFIX + deptId);
             if (item == null) {
                 missing++;
@@ -66,22 +79,30 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
             merged.add(item);
         }
 
-        MemberDashboardLoginStats loginStats = redisCache.getCacheObject(LOGIN_KEY);
-        if (loginStats == null) {
-            loginStats = new MemberDashboardLoginStats();
-        }
+        MemberDashboardLoginStats loginStats = mergeLoginStats(effectiveDeptIds);
 
         MemberDashboardOverview overview = new MemberDashboardOverview();
         overview.setStats(merged);
         overview.setLoginStats(loginStats);
-        overview.setVisibleDeptIds(visibleDeptIds);
-        overview.setVisibleDeptCount(visibleDeptIds.size());
+        overview.setVisibleDeptIds(effectiveDeptIds);
+        overview.setVisibleDeptCount(effectiveDeptIds.size());
         overview.setMissingDeptCount(missing);
         overview.setRefreshedAt(redisCache.getCacheObject(LAST_REFRESH_AT_KEY));
         overview.setRefreshStatus(redisCache.getCacheObject(LAST_REFRESH_STATUS_KEY));
-        overview.setScopeName(buildScopeName(visibleDeptIds));
-        overview.setLoginStatsScopeNote("登录统计按小程序登录接口全局成功次数统计；会员码展示量按会员所属门店计入当前数据权限范围。");
+        overview.setScopeName(buildScopeName(effectiveDeptIds));
+        overview.setLoginStatsScopeNote("登录和会员码展示量均按会员所属门店统计。");
         return overview;
+    }
+
+    @Override
+    public List<SysDept> getVisibleDepts() {
+        List<Long> visibleDeptIds = resolveVisibleDeptIds();
+        if (visibleDeptIds.isEmpty()) return Collections.emptyList();
+        SysDept query = new SysDept();
+        query.setStatus("0");
+        return deptMapper.selectDeptList(query).stream()
+                .filter(dept -> visibleDeptIds.contains(dept.getDeptId()))
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -216,6 +237,23 @@ public class MemberDashboardServiceImpl implements IMemberDashboardService {
             return dept == null || StringUtils.isBlank(dept.getDeptName()) ? "当前部门" : dept.getDeptName();
         }
         return "可见部门 " + visibleDeptIds.size() + " 个";
+    }
+
+    private MemberDashboardLoginStats mergeLoginStats(List<Long> deptIds) {
+        MemberDashboardLoginStats merged = new MemberDashboardLoginStats();
+        for (Long deptId : deptIds) {
+            MemberDashboardLoginStats item = dashboardMapper.selectLoginStatsByDeptId(deptId);
+            if (item == null) continue;
+            merged.setTotalLoginCount(merged.getTotalLoginCount() + safeLong(item.getTotalLoginCount()));
+            merged.setYearLoginCount(merged.getYearLoginCount() + safeLong(item.getYearLoginCount()));
+            merged.setMonthLoginCount(merged.getMonthLoginCount() + safeLong(item.getMonthLoginCount()));
+            merged.setYesterdayLoginCount(merged.getYesterdayLoginCount() + safeLong(item.getYesterdayLoginCount()));
+        }
+        return merged;
+    }
+
+    private long safeLong(Long value) {
+        return value == null ? 0L : value;
     }
 
     private void releaseLock(String lockValue) {

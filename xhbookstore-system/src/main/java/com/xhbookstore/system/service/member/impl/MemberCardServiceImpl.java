@@ -196,6 +196,8 @@ public class MemberCardServiceImpl implements IMemberCardService {
         refund.setRemark(remark);
         refundOrderMapper.insert(refund);
         memberCardMapper.refund(card.getId(), refundOrderNo);
+        // 售卡订单是支付/退款账务状态，必须与退卡结果同步；会员卡自身仍使用 3=已退款。
+        orderMapper.updateOrderStatusByMemberCardId(card.getId(), 2);
 
         MemberCard after = memberCardMapper.selectById(card.getId());
         writeLog(after, "REFUND_CARD", before, after, "status,refund_order_no,refunded_at",
