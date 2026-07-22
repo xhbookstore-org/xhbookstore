@@ -152,13 +152,16 @@ public class UserController {
         Map<String, Object> filtered = new HashMap<>(cardView);
         filtered.put("cards", visibleCards);
         MemberCard activeCard = null;
+        List<MemberCard> pendingCards = new ArrayList<>();
         for (MemberCard card : visibleCards) {
             if (card.getStatus() != null && card.getStatus() == 1) {
                 activeCard = card;
-                break;
+            } else if (card.getStatus() != null && card.getStatus() == 0) {
+                pendingCards.add(card);
             }
         }
         filtered.put("activeCard", activeCard);
+        filtered.put("pendingCards", pendingCards);
         filtered.put("hasActiveCard", activeCard != null);
         return filtered;
     }

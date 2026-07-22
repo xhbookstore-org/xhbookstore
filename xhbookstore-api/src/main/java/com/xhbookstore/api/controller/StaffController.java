@@ -157,6 +157,24 @@ public class StaffController {
         Map<String,Object> data=new HashMap<>(); data.put("member",memberMap); data.put("availability",availability); return ApiResponse.success(data);
     }
 
+    /**
+     * 员工扫码后查询会员卡；返回结构与用户端 GET /user/member-cards 保持一致。
+     */
+    @Operation(summary = "Query scanned member cards")
+    @GetMapping("/members/{memberId}/member-cards")
+    public ApiResponse<Map<String,Object>> memberCards(@PathVariable String memberId, HttpServletRequest request) {
+        currentStaff(request);
+        Integer memberIdValue;
+        try {
+            memberIdValue = Integer.valueOf(memberId);
+        } catch (NumberFormatException e) {
+            throw new ApiException(ApiErrorCode.PARAM_INVALID, "memberId must be a number");
+        }
+        Member member = memberService.selectMemberById(memberIdValue);
+        if (member == null) throw new ApiException(ApiErrorCode.MEMBER_NOT_FOUND);
+        return ApiResponse.success(visibleMemberCardView(memberCardService.getMemberCardView(memberIdValue)));
+    }
+
     @Operation(summary = "Borrow list")
     @GetMapping("/borrows")
     public ApiResponse<Map<String,Object>> borrowsList(@RequestParam(required=false) String phone,@RequestParam(required=false) String status,@RequestParam(defaultValue="1") int pageNo,@RequestParam(defaultValue="20") int pageSize,HttpServletRequest request){ validatePage(pageNo,pageSize); Integer statusValue=status!=null&&!status.isEmpty()?Integer.parseInt(status):null; int offset=(pageNo-1)*pageSize; List<Map<String,Object>> list=bookBorrowService.selectBorrowDetailPage(phone,statusValue,null,false,offset,pageSize); long total=bookBorrowService.countBorrowDetailPage(phone,statusValue,null,false); Map<String,Object> data=new HashMap<>(); data.put("page",new PageResult<>(list,pageNo,pageSize,total)); return ApiResponse.success(data); }
@@ -228,6 +246,28 @@ public class StaffController {
     public ApiResponse<Map<String,Object>> pointsDetail(@PathVariable String pointsRecordId){ PointsOrder order=pointsService.selectByOrderNumber(pointsRecordId); if(order==null||order.getIsDel()!=null&&order.getIsDel()!=0) throw new ApiException(ApiErrorCode.NOT_FOUND,"Points record not found"); Map<String,Object> data=new HashMap<>(); data.put("pointsRecordId",order.getOrderNumber()); data.put("memberId",order.getMemberId()); data.put("reasonName",order.getDescription()); data.put("direction",order.getOrderNumber()!=null&&order.getOrderNumber().startsWith("IN")?"add":"deduct"); data.put("pointsDelta",order.getAmount()); data.put("beforePoints",order.getOrginPoints()); data.put("afterPoints",order.getAfterPoints()); data.put("operatedAt",order.getCreatedAt()!=null?order.getCreatedAt().getTime():null); data.put("operationDevice",order.getOperationDevice()); return ApiResponse.success(data); }
 
     private Map<String,Object> buildMemberCard(Member m){ Map<String,Object> card=new HashMap<>(); card.put("cardTypeId",m.getCardTypeId()); card.put("cardTypeName",m.getCardTypeName()); card.put("memberNo",m.getCardNo()); card.put("cardStatus",m.getStatus()!=null&&m.getStatus()==0?"active":"inactive"); card.put("level",m.getLevelId()); card.put("remainingDays",m.getValidDate()!=null?Math.max(0,(m.getValidDate().getTime()-System.currentTimeMillis())/86400000L):0); card.put("effectiveAt",m.getCreatedAt()!=null?m.getCreatedAt().getTime():null); card.put("expiredAt",m.getValidDate()!=null?m.getValidDate().getTime():null); return card; }
+    private Map<String,Object> visibleMemberCardView(Map<String,Object> cardView) {
+        if (cardView == null) return Collections.emptyMap();
+        Object cardsValue = cardView.get("cards");
+        if (!(cardsValue instanceof List<?> cards)) return cardView;
+        List<MemberCard> visibleCards = new ArrayList<>();
+        List<MemberCard> pendingCards = new ArrayList<>();
+        MemberCard activeCard = null;
+        for (Object item : cards) {
+            if (!(item instanceof MemberCard card)) continue;
+            Integer status = card.getStatus();
+            if (status == null || (status != 0 && status != 1)) continue;
+            visibleCards.add(card);
+            if (status == 1 && activeCard == null) activeCard = card;
+            if (status == 0) pendingCards.add(card);
+        }
+        Map<String,Object> data = new HashMap<>(cardView);
+        data.put("activeCard", activeCard);
+        data.put("pendingCards", pendingCards);
+        data.put("cards", visibleCards);
+        data.put("hasActiveCard", activeCard != null);
+        return data;
+    }
     private Map<String,Object> buildFlatItem(BookBorrowOrder o,BookBorrowDetail d){ Map<String,Object> item=new HashMap<>(); item.put("detailId",d.getId()); item.put("borrowDetailId",d.getId()); item.put("orderNo",d.getBorrowOrderNo()); item.put("memberId",d.getMemberId()); item.put("bookCode",d.getBookCode()); item.put("bookName",d.getBookName()); item.put("borrowStatus",d.getBorrowStatus()!=null?d.getBorrowStatus():0); item.put("borrowQty",d.getBorrowQty()!=null?d.getBorrowQty():0); item.put("returnedQty",d.getReturnedQty()!=null?d.getReturnedQty():0); item.put("purchaseQty",d.getPurchaseQty()!=null?d.getPurchaseQty():0); item.put("remainingQty",remainingQty(d)); item.put("purchaseOrderNo",d.getPurchaseOrderNo()); item.put("borrowTime",timeMillis(d.getBorrowTime())); item.put("returnAllTime",d.getReturnAllTime()!=null?timeMillis(d.getReturnAllTime()):(o!=null?timeMillis(o.getReturnAllTime()):null)); item.put("expectedReturnTime",o!=null?timeMillis(o.getExpectedReturnTime()):null); item.put("remark",d.getRemark()!=null?d.getRemark():(o!=null?o.getRemark():null)); return item; }
     private List<BookReturnDetail> filterReturns(List<BookReturnDetail> returns,Long detailId){ List<BookReturnDetail> list=new ArrayList<>(); if(returns==null) return list; for(BookReturnDetail r:returns){ if(r.getBorrowDetailId()!=null&&r.getBorrowDetailId().equals(detailId)) list.add(r); } return list; }
     private void validatePage(int pageNo,int pageSize){ if(pageNo<1) throw new ApiException(ApiErrorCode.PARAM_INVALID,"pageNo must be greater than 0"); if(pageSize<1||pageSize>100) throw new ApiException(ApiErrorCode.PARAM_INVALID,"pageSize must be between 1 and 100"); }
