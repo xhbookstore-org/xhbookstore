@@ -86,17 +86,17 @@ WHERE o.is_del = 0
 
 -- 历史记录中曾写入登录账号或员工 ID；可匹配到 sys_user 的数据统一展示为员工姓名。
 UPDATE member m
-JOIN sys_user u ON (m.last_operator = u.user_name OR m.last_operator = CAST(u.user_id AS CHAR))
+JOIN sys_user u ON (BINARY m.last_operator = BINARY u.user_name OR m.last_operator = CAST(u.user_id AS CHAR))
 SET m.last_operator = u.nick_name, m.updated_at = NOW()
 WHERE u.nick_name IS NOT NULL AND u.nick_name <> '';
 
 UPDATE member_card c
-JOIN sys_user u ON (c.create_staff_id = CAST(u.user_id AS CHAR) OR c.create_staff_name = u.user_name)
+JOIN sys_user u ON (c.create_staff_id = CAST(u.user_id AS CHAR) OR BINARY c.create_staff_name = BINARY u.user_name)
 SET c.create_staff_name = u.nick_name, c.updated_at = NOW()
 WHERE u.nick_name IS NOT NULL AND u.nick_name <> '';
 
 UPDATE member_card_order o
-JOIN sys_user u ON (o.create_staff_id = CAST(u.user_id AS CHAR) OR o.create_staff_name = u.user_name)
+JOIN sys_user u ON (o.create_staff_id = CAST(u.user_id AS CHAR) OR BINARY o.create_staff_name = BINARY u.user_name)
 SET o.create_staff_name = u.nick_name, o.updated_at = NOW()
 WHERE u.nick_name IS NOT NULL AND u.nick_name <> '';
 
