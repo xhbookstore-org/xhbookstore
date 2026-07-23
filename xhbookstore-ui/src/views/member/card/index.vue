@@ -110,6 +110,14 @@
         <template slot-scope="scope">
           <el-button size="mini" type="text" icon="el-icon-document" @click="handleLog(scope.row)" v-hasPermi="['member:card:query']">日志</el-button>
           <el-button
+            v-if="scope.row.status === 3"
+            size="mini"
+            type="text"
+            icon="el-icon-view"
+            @click="handleRefundDetail(scope.row)"
+            v-hasPermi="['member:card:list']"
+          >查看</el-button>
+          <el-button
             v-if="canRefundCard(scope.row)"
             size="mini"
             type="text"
@@ -151,6 +159,23 @@
       </div>
     </el-dialog>
 
+    <el-dialog title="退卡信息" :visible.sync="refundDetailVisible" width="560px" append-to-body>
+      <el-skeleton v-if="refundDetailLoading" :rows="5" animated />
+      <el-empty v-else-if="!refundDetail" description="未找到退卡记录" :image-size="90" />
+      <el-descriptions v-else :column="1" border size="small">
+        <el-descriptions-item label="退款单号">{{ refundDetail.refundOrderNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="会员编号">{{ refundDetail.memberNo || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="会员姓名">{{ refundDetail.memberName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="电话">{{ refundDetail.memberPhone || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="卡类型">{{ refundDetail.cardTypeName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="退卡时间">{{ parseTime(refundDetail.refundTime) || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="退卡员工">{{ refundDetail.operatorName || '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <div slot="footer">
+        <el-button @click="refundDetailVisible=false">关闭</el-button>
+      </div>
+    </el-dialog>
+
     <el-dialog title="会员卡日志" :visible.sync="logVisible" width="950px" append-to-body>
       <el-table v-loading="logLoading" :data="logList" size="small" max-height="420">
         <el-table-column label="类型" prop="logType" width="120" />
@@ -172,7 +197,7 @@
 </template>
 
 <script>
-import { listCardTypes, listMemberDepts, listMemberCards, listMemberCardLogs, refundMemberCard } from '@/api/member/member'
+import { listCardTypes, listMemberDepts, listMemberCards, listMemberCardLogs, listMemberCardRefundOrders, refundMemberCard } from '@/api/member/member'
 
 export default {
   name: 'MemberCardRecord',
@@ -208,6 +233,9 @@ export default {
         refundType: [{ required: true, message: '请填写', trigger: 'change' }],
         reason: [{ required: true, message: '请填写', trigger: 'blur' }]
       },
+      refundDetailVisible: false,
+      refundDetailLoading: false,
+      refundDetail: null,
       logVisible: false,
       logLoading: false,
       logList: []
@@ -273,6 +301,20 @@ export default {
       this.refundForm = { refundAmount: Number(row.saleAmount || 0), refundType: 'CASH', reason: '' }
       this.refundVisible = true
       this.$nextTick(() => { if (this.$refs.refundForm) this.$refs.refundForm.clearValidate() })
+    },
+    handleRefundDetail(row) {
+      this.refundDetailVisible = true
+      this.refundDetailLoading = true
+      this.refundDetail = null
+      listMemberCardRefundOrders({
+        memberCardId: row.id,
+        refundOrderNo: row.refundOrderNo || undefined,
+        pageNum: 1,
+        pageSize: 1
+      }).then(r => {
+        this.refundDetail = (r.rows || [])[0] || null
+        this.refundDetailLoading = false
+      }).catch(() => { this.refundDetailLoading = false })
     },
     submitRefund() {
       this.$refs.refundForm.validate(valid => {
