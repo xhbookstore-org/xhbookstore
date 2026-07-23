@@ -85,6 +85,41 @@ class PointsServiceImplTest {
     }
 
     @Test
+    void settleBorrowReturnPointsUsesPurchaseRuleAndBusinessKey() {
+        Member member = member(1, 30);
+        PointsRule rule = new PointsRule();
+        rule.setId(12L);
+        rule.setRuleCode("PURCHASE_BOOK");
+        rule.setRuleName("购买书籍");
+        rule.setSceneCode("PURCHASE_BOOK");
+        rule.setDirection("ADD");
+        rule.setTriggerEvent("PURCHASE_COMPLETED");
+        rule.setCalculationMode("PER_YUAN");
+        rule.setPointsPerUnit(1);
+        rule.setPointsValidDays(360);
+        when(pointsOrderMapper.selectByBusinessKey("PURCHASE_BOOK:HS001"))
+                .thenReturn(null).thenReturn(null);
+        when(memberMapper.selectMemberById(1)).thenReturn(member);
+        when(memberMapper.selectMemberByIdForUpdate(1)).thenReturn(member);
+        when(pointsRuleMapper.selectEnabledByRuleCodeForUpdate("PURCHASE_BOOK", 3L, null)).thenReturn(rule);
+        when(pointsOrderMapper.insertRulePointsOrder(any())).thenReturn(1);
+        when(intoBillMapper.insertIntoBill(any())).thenReturn(1);
+        when(memberMapper.updateMember(any())).thenReturn(1);
+        when(pointsRuleMapper.incrementUsage(12L, 25)).thenReturn(1);
+
+        Map<String, Object> result = service.settleBorrowReturnPoints(1, "HS001", 25, 3L, "staff");
+
+        assertThat(result).containsEntry("status", "SUCCESS").containsEntry("points", 25);
+        ArgumentCaptor<Map<String, Object>> order = ArgumentCaptor.forClass(Map.class);
+        verify(pointsOrderMapper).insertRulePointsOrder(order.capture());
+        assertThat(order.getValue())
+                .containsEntry("businessKey", "PURCHASE_BOOK:HS001")
+                .containsEntry("baseQuantity", BigDecimal.valueOf(25))
+                .containsEntry("amount", 25)
+                .containsEntry("direction", "ADD");
+    }
+
+    @Test
     void adjustPointsByRuleAddsConfiguredFixedPointsAndAuditSnapshot() {
         Member member = member(1, 30);
         member.setDeptId(3L);

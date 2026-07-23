@@ -106,6 +106,7 @@ public class PointsServiceImpl implements IPointsService {
         order.put("ruleCode", rule.getRuleCode());
         order.put("ruleName", rule.getRuleName());
         order.put("sceneCode", rule.getSceneCode());
+        order.put("direction", "ADD");
         order.put("triggerEvent", rule.getTriggerEvent());
         order.put("calculationMode", rule.getCalculationMode());
         order.put("baseQuantity", BigDecimal.valueOf(detailCount));
@@ -169,6 +170,150 @@ public class PointsServiceImpl implements IPointsService {
         result.put("status", status);
         result.put("points", points);
         result.put("orderNumber", orderNumber);
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> settleBorrowReturnPoints(Integer memberId, String returnOrderNo, int paidAmount,
+                                                         Long deptId, String operator) {
+        if (memberId == null || returnOrderNo == null || returnOrderNo.isBlank() || paidAmount < 0) {
+            throw new IllegalArgumentException("Invalid borrow return points parameters");
+        }
+        if (paidAmount == 0) return pointsResult("SKIPPED_ZERO_AMOUNT", 0, null);
+
+        String businessKey = "PURCHASE_BOOK:" + returnOrderNo;
+        Map<String, Object> existing = pointsOrderMapper.selectByBusinessKey(businessKey);
+        if (existing != null) return pointsResult("IDEMPOTENT", number(existing.get("amount")), existing.get("order_number"));
+
+        Member memberView = memberMapper.selectMemberById(memberId);
+        if (memberView == null) throw new IllegalStateException("Member not found while settling borrow return points");
+        PointsRule rule = pointsRuleMapper.selectEnabledByRuleCodeForUpdate(
+                "PURCHASE_BOOK", deptId, memberView.getCardTypeId());
+        if (rule == null) return pointsResult("SKIPPED_NO_RULE", 0, null);
+        if (!"PER_YUAN".equals(rule.getCalculationMode()) || rule.getPointsPerUnit() == null
+                || rule.getPointsPerUnit() <= 0) {
+            throw new IllegalStateException("PURCHASE_BOOK rule must use PER_YUAN with positive points per unit");
+        }
+        if (!"ADD".equals(rule.getDirection()) && !"DEDUCT".equals(rule.getDirection())) {
+            throw new IllegalStateException("PURCHASE_BOOK rule direction is invalid");
+        }
+
+        existing = pointsOrderMapper.selectByBusinessKey(businessKey);
+        if (existing != null) return pointsResult("IDEMPOTENT", number(existing.get("amount")), existing.get("order_number"));
+        if (rule.getMemberLimit() != null
+                && pointsOrderMapper.countSuccessByRuleAndMember(rule.getId(), memberId) >= rule.getMemberLimit()) {
+            return pointsResult("SKIPPED_MEMBER_LIMIT", 0, null);
+        }
+
+        int basePoints = Math.multiplyExact(paidAmount, rule.getPointsPerUnit());
+        boolean memberDayApplied = "ADD".equals(rule.getDirection()) && isMemberDay(rule);
+        BigDecimal multiplier = memberDayApplied ? rule.getMemberDayMultiplier() : BigDecimal.ONE;
+        int points;
+        try {
+            points = BigDecimal.valueOf(basePoints).multiply(multiplier).intValueExact();
+        } catch (ArithmeticException e) {
+            throw new IllegalStateException("会员日倍增后的积分必须为整数", e);
+        }
+        if (rule.getMaxPointsPerOrder() != null) points = Math.min(points, rule.getMaxPointsPerOrder());
+        if (points <= 0) return pointsResult("SKIPPED_ZERO_POINTS", 0, null);
+
+        Member member = memberMapper.selectMemberByIdForUpdate(memberId);
+        if (member == null) throw new IllegalStateException("Member not found while settling borrow return points");
+        int beforePoints = member.getCurrentPoints() == null ? 0 : member.getCurrentPoints();
+        boolean deduct = "DEDUCT".equals(rule.getDirection());
+        if (deduct && beforePoints < points) throw new IllegalStateException("积分不足，当前余额：" + beforePoints);
+        int signedPoints = deduct ? -points : points;
+        int afterPoints = Math.addExact(beforePoints, signedPoints);
+        String orderNumber = generateRuleOrderNumber();
+
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("ruleId", rule.getId());
+        snapshot.put("ruleCode", rule.getRuleCode());
+        snapshot.put("paidAmount", paidAmount);
+        snapshot.put("pointsPerUnit", rule.getPointsPerUnit());
+        snapshot.put("basePoints", basePoints);
+        snapshot.put("memberDayApplied", memberDayApplied);
+        snapshot.put("multiplier", multiplier);
+        snapshot.put("points", points);
+        snapshot.put("pointsValidDays", validDays(rule));
+
+        Map<String, Object> order = new LinkedHashMap<>();
+        order.put("orderNumber", orderNumber);
+        order.put("openId", member.getCardNo() == null ? "" : member.getCardNo());
+        order.put("cardNo", member.getCardNo() == null ? "" : member.getCardNo());
+        order.put("memberId", memberId);
+        order.put("amount", signedPoints);
+        order.put("description", rule.getRuleName() + "：" + returnOrderNo);
+        order.put("beforePoints", beforePoints);
+        order.put("afterPoints", afterPoints);
+        order.put("ruleId", rule.getId());
+        order.put("ruleCode", rule.getRuleCode());
+        order.put("ruleName", rule.getRuleName());
+        order.put("sceneCode", rule.getSceneCode());
+        order.put("direction", rule.getDirection());
+        order.put("triggerEvent", rule.getTriggerEvent());
+        order.put("calculationMode", rule.getCalculationMode());
+        order.put("baseQuantity", BigDecimal.valueOf(paidAmount));
+        order.put("basePoints", basePoints);
+        order.put("businessType", "BORROW_RETURN");
+        order.put("businessOrderNo", returnOrderNo);
+        order.put("businessKey", businessKey);
+        order.put("idempotencyKey", businessKey);
+        order.put("calculationSnapshot", JSON.toJSONString(snapshot));
+        if (pointsOrderMapper.insertRulePointsOrder(order) != 1) {
+            throw new IllegalStateException("Failed to create borrow return points order");
+        }
+
+        if (deduct) {
+            PointsUserOutBillDetail outBill = new PointsUserOutBillDetail();
+            outBill.setMemberId(memberId);
+            outBill.setPoints(points);
+            outBill.setRemainingPoints(afterPoints);
+            outBill.setDescription(rule.getRuleName() + "：" + returnOrderNo);
+            outBill.setOrderNoSrc(orderNumber);
+            outBill.setActivityKey(rule.getRuleCode());
+            outBill.setActivityName(rule.getRuleName());
+            outBill.setEventKey(rule.getTriggerEvent());
+            outBill.setEventName("借阅还书结算");
+            outBill.setAccountType(0);
+            outBill.setBillStatus(0);
+            outBill.setIsDel(0);
+            if (outBillMapper.insertOutBill(outBill) != 1) throw new IllegalStateException("Failed to create points out bill");
+        } else {
+            Date expiry = expiryAfterDays(validDays(rule));
+            PointsUserIntoBillDetail intoBill = new PointsUserIntoBillDetail();
+            intoBill.setMemberId(memberId);
+            intoBill.setPoints(points);
+            intoBill.setRemainingPoints(points);
+            intoBill.setDescription(rule.getRuleName() + "：" + returnOrderNo);
+            intoBill.setOrderNoSrc(orderNumber);
+            intoBill.setOrderNoTarget(returnOrderNo);
+            intoBill.setActivityKey(rule.getRuleCode());
+            intoBill.setActivityName(rule.getRuleName());
+            intoBill.setEventKey(rule.getTriggerEvent());
+            intoBill.setEventName("借阅还书结算");
+            intoBill.setAccountType(0);
+            intoBill.setBillStatus(0);
+            intoBill.setIsWhiteOrder(0);
+            intoBill.setExpiredTime(expiry);
+            intoBill.setExpiredTimestamp(expiry.getTime());
+            intoBill.setIsDel(0);
+            if (intoBillMapper.insertIntoBill(intoBill) != 1) throw new IllegalStateException("Failed to create points into bill");
+        }
+        Member updateMember = new Member();
+        updateMember.setId(memberId);
+        updateMember.setCurrentPoints(afterPoints);
+        updateMember.setLastOperator(operator == null || operator.isBlank() ? "SYSTEM" : operator);
+        if (memberMapper.updateMember(updateMember) != 1) throw new IllegalStateException("Failed to update member points");
+        if (pointsRuleMapper.incrementUsage(rule.getId(), points) != 1) {
+            throw new IllegalStateException("PURCHASE_BOOK rule limit or budget exceeded");
+        }
+
+        Map<String, Object> result = pointsResult("SUCCESS", signedPoints, orderNumber);
+        result.put("basePoints", basePoints);
+        result.put("memberDayApplied", memberDayApplied);
+        result.put("afterPoints", afterPoints);
         return result;
     }
 

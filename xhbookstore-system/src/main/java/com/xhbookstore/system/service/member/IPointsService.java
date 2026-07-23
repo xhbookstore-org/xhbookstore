@@ -38,6 +38,13 @@ public interface IPointsService {
     Map<String, Object> grantBorrowPoints(Integer memberId, String borrowOrderNo, int detailCount, Long deptId);
 
     /**
+     * 借阅图书破损赔付或转购完成后，按 PURCHASE_BOOK 规则自动处理积分。
+     * paidAmount 为员工录入的实付金额（允许 0），同一还书单幂等。
+     */
+    Map<String, Object> settleBorrowReturnPoints(Integer memberId, String returnOrderNo, int paidAmount,
+                                                 Long deptId, String operator);
+
+    /**
      * 查询会员积分订单列表
      * @param memberId 会员ID
      * @return 积分订单列表

@@ -115,7 +115,7 @@
             #{amount}, 'SYSTEM', now(), now(),
             0, 2, '', #{beforePoints}, #{afterPoints},
             #{ruleId}, #{ruleCode}, #{ruleName}, #{sceneCode}, 'NORMAL',
-            'ADD', 'AUTO', #{triggerEvent}, #{calculationMode},
+            #{direction}, 'AUTO', #{triggerEvent}, #{calculationMode},
             #{baseQuantity}, #{basePoints}, 1.000, 'AVAILABLE',
             0, 0, 'AVAILABLE',
             #{businessType}, #{businessOrderNo}, #{businessKey},

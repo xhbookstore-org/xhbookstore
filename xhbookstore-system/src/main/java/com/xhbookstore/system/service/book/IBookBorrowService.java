@@ -12,7 +12,7 @@ public interface IBookBorrowService {
     AjaxResult createBorrowOrder(Integer memberId, List<Map<String, Object>> books, String remark,
                                   String staffId, String staffName, Long deptId);
 
-    AjaxResult returnBook(String borrowOrderNo, List<Map<String, Object>> returnItems,
+    AjaxResult returnBook(Long borrowDetailId, String returnCondition, Integer points, String remark,
                            String staffId, String staffName, Long deptId);
 
     AjaxResult borrowToPurchase(List<Map<String, Object>> purchaseItems,

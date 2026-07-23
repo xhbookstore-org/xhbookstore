@@ -45,7 +45,7 @@
 | GET | `/staff/members/{memberId}/member-cards` | 查询扫码会员的会员卡 | [staff/17-查询指定会员会员卡.md](staff/17-查询指定会员会员卡.md) |
 | GET | `/staff/borrows` | 按数据权限查询借阅明细列表 | [staff/04-查询全市借阅列表.md](staff/04-查询全市借阅列表.md) |
 | GET | `/staff/borrows/{detailId}` | 员工侧借阅详情，按借阅明细 ID 查询 | [staff/05-查询员工侧借阅详情.md](staff/05-查询员工侧借阅详情.md) |
-| POST | `/staff/borrow-returns` | 办理还书，支持按明细分次分数量归还 | [staff/06-办理还书.md](staff/06-办理还书.md) |
+| POST | `/staff/borrow-returns` | 办理单册还书，按无损/轻微磨损/破损/购买四态结算 | [staff/06-办理还书.md](staff/06-办理还书.md) |
 | GET | `/staff/members/{memberId}/borrows` | 指定会员借阅记录 | [staff/07-查询指定会员借阅记录.md](staff/07-查询指定会员借阅记录.md) |
 | POST | `/staff/members/{memberId}/borrows` | 办理借阅 | [staff/08-办理借阅.md](staff/08-办理借阅.md) |
 | GET | `/staff/points-reasons` | 查询积分事项 | [staff/09-查询积分事项.md](staff/09-查询积分事项.md) |

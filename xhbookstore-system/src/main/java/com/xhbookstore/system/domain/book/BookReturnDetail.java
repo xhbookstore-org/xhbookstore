@@ -17,7 +17,11 @@ public class BookReturnDetail {
     private Integer returnQty;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date returnTime;
+    /** 兼容历史整型状态：1=无损，2=轻微磨损，3=破损，4=购买。 */
     private Integer returnType;
+    private String returnCondition;
+    /** 破损或购买时员工录入的实付金额。 */
+    private Integer points;
     private String remark;
     private Long deptId;
     private String staffId;
@@ -52,6 +56,10 @@ public class BookReturnDetail {
     public void setReturnTime(Date returnTime) { this.returnTime = returnTime; }
     public Integer getReturnType() { return returnType; }
     public void setReturnType(Integer returnType) { this.returnType = returnType; }
+    public String getReturnCondition() { return returnCondition; }
+    public void setReturnCondition(String returnCondition) { this.returnCondition = returnCondition; }
+    public Integer getPoints() { return points; }
+    public void setPoints(Integer points) { this.points = points; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
     public Long getDeptId() { return deptId; }

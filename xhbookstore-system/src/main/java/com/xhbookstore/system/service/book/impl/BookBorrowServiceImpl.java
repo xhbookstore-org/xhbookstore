@@ -46,16 +46,16 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         Set<String> requestImageIds = new HashSet<>();
 
         for (Map<String, Object> bookItem : books) {
-            String bookCode = requiredText(bookItem.get("bookCode"), "Book code is required", 64);
-            String bookName = requiredText(firstNonBlankObject(bookItem.get("bookName"), bookItem.get("bookTitle")),
-                    "Book name is required", 200);
+            String bookCode = optionalText(bookItem.get("bookCode"), 64);
+            String bookName = optionalText(firstNonBlankObject(bookItem.get("bookName"), bookItem.get("bookTitle")), 200);
+            if (bookName == null) bookName = "借阅图书";
             int qty = toInt(bookItem.get("borrowQty"), 1);
             if (qty != 1) {
                 throw new BookBorrowException("Each book item must represent exactly one copy");
             }
             List<String> imageIds = stringList(bookItem.get("imageIds"));
-            if (imageIds.size() > MAX_IMAGES_PER_DETAIL) {
-                throw new BookBorrowException("Each borrowed book can have at most 3 images");
+            if (imageIds.size() != MAX_IMAGES_PER_DETAIL) {
+                throw new BookBorrowException("Each borrowed book must have exactly 3 images");
             }
             for (String imageId : imageIds) {
                 if (!requestImageIds.add(imageId)) {
@@ -136,98 +136,90 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public AjaxResult returnBook(String borrowOrderNo, List<Map<String, Object>> returnItems,
+    public AjaxResult returnBook(Long borrowDetailId, String returnCondition, Integer points, String remark,
                                   String staffId, String staffName, Long deptId) {
-        BookBorrowOrder order = orderMapper.selectByOrderNo(borrowOrderNo);
-        if (order == null) throw new BookBorrowException("Borrow order not found");
-        if (returnItems == null || returnItems.isEmpty()) throw new BookBorrowException("Return items are required");
+        if (borrowDetailId == null) throw new BookBorrowException("Borrow detail id is required");
+        ReturnCondition condition = ReturnCondition.parse(returnCondition);
+        if (condition.requiresPoints() && points == null) {
+            throw new BookBorrowException("Points are required for " + condition.value());
+        }
+        if (!condition.requiresPoints()) points = null;
+        if (points != null && points < 0) throw new BookBorrowException("Points cannot be negative");
 
-        Set<Long> returnDetailIds = new HashSet<>();
-        for (Map<String, Object> item : returnItems) {
-            Long detailId = toLong(item.get("borrowDetailId"));
-            int returnQty = toInt(item.get("returnQty"), 1);
-            if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
-            if (returnQty != 1) throw new BookBorrowException("Each borrow detail must be returned as one copy");
-            if (!returnDetailIds.add(detailId)) throw new BookBorrowException("Duplicate borrow detail: " + detailId);
-
-            BookBorrowDetail detail = detailMapper.selectByIdForUpdate(detailId);
-            if (detail == null || !order.getId().equals(detail.getBorrowOrderId())) {
-                throw new BookBorrowException("Borrow detail not found: " + detailId);
-            }
-            if (returnQty > remainingQty(detail)) {
-                throw new BookBorrowException("Return quantity exceeds remaining quantity: " + detail.getBookName());
-            }
+        BookBorrowDetail beforeDetail = detailMapper.selectByIdForUpdate(borrowDetailId);
+        if (beforeDetail == null) throw new BookBorrowException("Borrow detail not found: " + borrowDetailId);
+        if (remainingQty(beforeDetail) != 1) {
+            throw new BookBorrowException("Borrow detail has already been settled: " + borrowDetailId);
+        }
+        BookBorrowOrder order = orderMapper.selectByOrderNo(beforeDetail.getBorrowOrderNo());
+        if (order == null || !Objects.equals(order.getId(), beforeDetail.getBorrowOrderId())) {
+            throw new BookBorrowException("Borrow order not found for detail: " + borrowDetailId);
         }
 
         String traceId = newTraceId();
-        int totalReturned = 0;
-        List<String> returnOrderNos = new ArrayList<>();
+        String returnOrderNo = generateOrderNo("HS");
+        BookReturnDetail rd = new BookReturnDetail();
+        rd.setReturnOrderNo(returnOrderNo);
+        rd.setBorrowOrderId(order.getId());
+        rd.setBorrowOrderNo(order.getOrderNo());
+        rd.setBorrowDetailId(borrowDetailId);
+        rd.setMemberId(order.getMemberId());
+        rd.setBookId(beforeDetail.getBookId());
+        rd.setBookCode(beforeDetail.getBookCode());
+        rd.setBookName(beforeDetail.getBookName());
+        rd.setReturnQty(1);
+        rd.setReturnType(condition.type());
+        rd.setReturnCondition(condition.value());
+        rd.setPoints(points);
+        rd.setRemark(buildReturnRemark(condition, points, remark));
+        rd.setDeptId(deptId);
+        rd.setStaffId(staffId);
+        rd.setStaffName(staffName);
+        returnMapper.insert(rd);
 
-        for (Map<String, Object> item : returnItems) {
-            Long detailId = toLong(item.get("borrowDetailId"));
-            int returnQty = toInt(item.get("returnQty"), 1);
-            int returnType = toInt(item.get("returnType"), 1);
-            String itemRemark = (String) item.get("remark");
-            if (detailId == null) throw new BookBorrowException("Borrow detail id is required");
-            if (returnQty != 1) throw new BookBorrowException("Each borrow detail must be returned as one copy");
-
-            BookBorrowDetail beforeDetail = detailMapper.selectByIdForUpdate(detailId);
-            if (beforeDetail == null || !order.getId().equals(beforeDetail.getBorrowOrderId())) {
-                throw new BookBorrowException("Borrow detail not found: " + detailId);
-            }
-            if (returnQty > remainingQty(beforeDetail)) {
-                throw new BookBorrowException("Return quantity exceeds remaining quantity: " + beforeDetail.getBookName());
-            }
-
-            String returnOrderNo = generateOrderNo("HS");
-            BookReturnDetail rd = new BookReturnDetail();
-            rd.setReturnOrderNo(returnOrderNo);
-            rd.setBorrowOrderId(order.getId());
-            rd.setBorrowOrderNo(borrowOrderNo);
-            rd.setBorrowDetailId(detailId);
-            rd.setMemberId(order.getMemberId());
-            rd.setBookId(beforeDetail.getBookId());
-            rd.setBookCode(beforeDetail.getBookCode());
-            rd.setBookName(beforeDetail.getBookName());
-            rd.setReturnQty(returnQty);
-            rd.setReturnType(returnType);
-            rd.setRemark(itemRemark);
-            rd.setDeptId(deptId);
-            rd.setStaffId(staffId);
-            rd.setStaffName(staffName);
-            returnMapper.insert(rd);
-
-            BookBorrowDetail afterDetail = cloneDetail(beforeDetail);
-            afterDetail.setReturnedQty(safeInt(beforeDetail.getReturnedQty()) + returnQty);
-            afterDetail.setLastStaffId(staffId);
-            afterDetail.setLastStaffName(staffName);
-            applyDetailStatus(afterDetail);
-            detailMapper.updateReturnInfo(afterDetail);
-            BookBorrowDetail savedDetail = detailMapper.selectById(detailId);
-
-            Map<String, Object> beforeData = new LinkedHashMap<>();
-            beforeData.put("borrowDetail", beforeDetail);
-            Map<String, Object> afterData = new LinkedHashMap<>();
-            afterData.put("returnDetail", rd);
-            afterData.put("borrowDetail", savedDetail);
-            writeReturnLog(traceId, rd, beforeData, afterData, "return_qty,returned_qty,borrow_status", staffId, staffName);
-            writeBorrowLog(traceId, order, detailId, beforeDetail, savedDetail, returnOrderNo, 1, 5,
-                    "returned_qty,borrow_status,return_all_time", staffId, staffName);
-
-            returnOrderNos.add(returnOrderNo);
-            totalReturned += returnQty;
+        BookBorrowDetail afterDetail = cloneDetail(beforeDetail);
+        if (condition == ReturnCondition.PURCHASE) {
+            afterDetail.setPurchaseQty(safeInt(beforeDetail.getPurchaseQty()) + 1);
+            afterDetail.setPurchaseOrderNo(appendOrderNo(beforeDetail.getPurchaseOrderNo(), returnOrderNo));
+        } else {
+            afterDetail.setReturnedQty(safeInt(beforeDetail.getReturnedQty()) + 1);
         }
+        afterDetail.setLastStaffId(staffId);
+        afterDetail.setLastStaffName(staffName);
+        applyDetailStatus(afterDetail);
+        if (condition == ReturnCondition.PURCHASE) detailMapper.updatePurchaseInfo(afterDetail);
+        else detailMapper.updateReturnInfo(afterDetail);
+        BookBorrowDetail savedDetail = detailMapper.selectById(borrowDetailId);
+
+        Map<String, Object> beforeData = new LinkedHashMap<>();
+        beforeData.put("borrowDetail", beforeDetail);
+        Map<String, Object> afterData = new LinkedHashMap<>();
+        afterData.put("returnDetail", rd);
+        afterData.put("borrowDetail", savedDetail);
+        writeReturnLog(traceId, rd, beforeData, afterData,
+                condition == ReturnCondition.PURCHASE ? "purchase_qty,borrow_status,return_condition,points" : "return_qty,returned_qty,borrow_status,return_condition,points",
+                staffId, staffName);
+        writeBorrowLog(traceId, order, borrowDetailId, beforeDetail, savedDetail, returnOrderNo,
+                condition == ReturnCondition.PURCHASE ? 2 : 1, 5,
+                condition == ReturnCondition.PURCHASE ? "purchase_qty,borrow_status,return_all_time" : "returned_qty,borrow_status,return_all_time",
+                staffId, staffName);
 
         BookBorrowOrder beforeOrder = cloneOrder(order);
         BookBorrowOrder updatedOrder = refreshOrderStatus(order, staffId, staffName);
         if (safeInt(updatedOrder.getIsFinished()) == 1 && safeInt(beforeOrder.getIsFinished()) != 1) {
-            writeBorrowLog(traceId, updatedOrder, null, beforeOrder, updatedOrder, "", 0, 3,
+            writeBorrowLog(traceId, updatedOrder, null, beforeOrder, updatedOrder, returnOrderNo, 0, 3,
                     "borrow_status,is_finished,return_all_time", staffId, staffName);
         }
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("returnOrderNos", returnOrderNos);
-        data.put("totalReturned", totalReturned);
+        Map<String, Object> pointsResult = condition.requiresPoints()
+                ? pointsService.settleBorrowReturnPoints(order.getMemberId(), returnOrderNo, points, deptId, staffName)
+                : Collections.singletonMap("status", "NOT_APPLICABLE");
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("returnOrderNo", returnOrderNo);
+        data.put("borrowDetailId", borrowDetailId);
+        data.put("returnCondition", condition.value());
+        data.put("points", points);
+        data.put("pointsResult", pointsResult);
         data.put("traceId", traceId);
         return AjaxResult.success("Return completed", data);
     }
@@ -612,6 +604,23 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
         return result;
     }
 
+    private String optionalText(Object value, int maxLength) {
+        String result = text(value);
+        if (result != null && result.length() > maxLength) {
+            throw new BookBorrowException("Text exceeds max length " + maxLength);
+        }
+        return result;
+    }
+
+    private String buildReturnRemark(ReturnCondition condition, Integer points, String remark) {
+        StringBuilder result = new StringBuilder("还书状态：").append(condition.label());
+        if (points != null) result.append("；积分金额：").append(points);
+        String userRemark = text(remark);
+        if (userRemark != null) result.append("；").append(userRemark);
+        if (result.length() > 500) throw new BookBorrowException("Return remark exceeds max length 500");
+        return result.toString();
+    }
+
     private String text(Object value) {
         if (value == null) return null;
         String result = value.toString().trim();
@@ -647,5 +656,38 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     }
 
     private record BorrowBookInput(String bookCode, String bookName, String remark, List<String> imageIds) {
+    }
+
+    private enum ReturnCondition {
+        INTACT("intact", "无损", 1, false),
+        SLIGHT_WEAR("slight_wear", "轻微磨损", 2, false),
+        DAMAGED("damaged", "破损", 3, true),
+        PURCHASE("purchase", "购买", 4, true);
+
+        private final String value;
+        private final String label;
+        private final int type;
+        private final boolean requiresPoints;
+
+        ReturnCondition(String value, String label, int type, boolean requiresPoints) {
+            this.value = value;
+            this.label = label;
+            this.type = type;
+            this.requiresPoints = requiresPoints;
+        }
+
+        static ReturnCondition parse(String value) {
+            if (value != null) {
+                for (ReturnCondition condition : values()) {
+                    if (condition.value.equals(value.trim())) return condition;
+                }
+            }
+            throw new BookBorrowException("returnCondition must be one of intact, slight_wear, damaged, purchase");
+        }
+
+        String value() { return value; }
+        String label() { return label; }
+        int type() { return type; }
+        boolean requiresPoints() { return requiresPoints; }
     }
 }

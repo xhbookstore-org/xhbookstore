@@ -15,6 +15,8 @@
         <result property="returnQty" column="return_qty"/>
         <result property="returnTime" column="return_time"/>
         <result property="returnType" column="return_type"/>
+        <result property="returnCondition" column="return_condition"/>
+        <result property="points" column="points"/>
         <result property="remark" column="remark"/>
         <result property="deptId" column="dept_id"/>
         <result property="staffId" column="staff_id"/>
@@ -27,10 +29,10 @@
     <insert id="insert" parameterType="com.xhbookstore.system.domain.book.BookReturnDetail" useGeneratedKeys="true" keyProperty="id">
         insert into book_return_detail (return_order_no, borrow_order_id, borrow_order_no, borrow_detail_id,
             member_id, book_id, book_code, book_name, return_qty, return_time, return_type,
-            remark, dept_id, staff_id, staff_name, created_at)
+            return_condition, points, remark, dept_id, staff_id, staff_name, created_at)
         values (#{returnOrderNo}, #{borrowOrderId}, #{borrowOrderNo}, #{borrowDetailId},
             #{memberId}, #{bookId}, #{bookCode}, #{bookName}, #{returnQty}, now(), #{returnType},
-            #{remark}, #{deptId}, #{staffId}, #{staffName}, now())
+            #{returnCondition}, #{points}, #{remark}, #{deptId}, #{staffId}, #{staffName}, now())
     </insert>
 
     <select id="selectByBorrowDetailId" parameterType="Long" resultMap="BookReturnDetailResult">

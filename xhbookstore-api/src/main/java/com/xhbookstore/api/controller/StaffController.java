@@ -196,19 +196,17 @@ public class StaffController {
         return ApiResponse.success(data);
     }
 
-    @SuppressWarnings("unchecked")
-    @Operation(summary = "Return books")
+    @Operation(summary = "Return one borrowed book")
     @PostMapping("/borrow-returns")
     public ApiResponse<Map<String,Object>> returnBooks(@RequestBody Map<String,Object> body,HttpServletRequest request){
-        List<Map<String,Object>> returnItems=new ArrayList<>(); Object obj=body.get("returnItems");
-        if(obj instanceof List<?>){ for(Object row:(List<?>)obj){ if(row instanceof Map<?,?>){ Map<?,?> raw=(Map<?,?>)row; Map<String,Object> item=new HashMap<>(); item.put("borrowDetailId",raw.get("borrowDetailId")); item.put("returnQty",raw.get("returnQty")); item.put("returnType",raw.get("returnType")!=null?raw.get("returnType"):1); item.put("remark",raw.get("remark")); returnItems.add(item); } } }
-        else { List<Object> ids=(List<Object>)body.get("borrowDetailIds"); if(ids!=null) for(Object idObj:ids){ Long detailId=Long.valueOf(idObj.toString()); BookBorrowDetail detail=bookBorrowService.selectDetailById(detailId); if(detail==null) throw new ApiException(ApiErrorCode.NOT_FOUND,"Borrow detail not found: "+detailId); Map<String,Object> item=new HashMap<>(); item.put("borrowDetailId",detailId); item.put("returnQty",1); item.put("returnType",1); returnItems.add(item); } }
-        if(returnItems.isEmpty()) throw new ApiException(ApiErrorCode.PARAM_INVALID,"Return items are required");
-        Map<String,List<Map<String,Object>>> byOrder=new LinkedHashMap<>();
-        for(Map<String,Object> item:returnItems){ Long detailId=Long.valueOf(item.get("borrowDetailId").toString()); BookBorrowDetail detail=bookBorrowService.selectDetailById(detailId); if(detail==null) throw new ApiException(ApiErrorCode.NOT_FOUND,"Borrow detail not found: "+detailId); int qty=parseInt(item.get("returnQty"),1); if(qty!=1||qty>remainingQty(detail)) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,"Each borrow detail must be returned as one copy"); item.put("borrowDetailId",detailId); item.put("returnQty",qty); item.put("returnType",parseInt(item.get("returnType"),1)); byOrder.computeIfAbsent(detail.getBorrowOrderNo(),k->new ArrayList<>()).add(item); }
-        List<String> returnOrderNos=new ArrayList<>(); int totalReturned=0; String traceId=null;
-        for(Map.Entry<String,List<Map<String,Object>>> e:byOrder.entrySet()){ AjaxResult result=bookBorrowService.returnBook(e.getKey(),e.getValue(),getStaffId(request),getStaffName(request),null); if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,(String)result.get("msg")); Map<String,Object> rd=(Map<String,Object>)result.get("data"); if(rd!=null){ Object nos=rd.get("returnOrderNos"); if(nos instanceof Collection<?>) for(Object no:(Collection<?>)nos) returnOrderNos.add(String.valueOf(no)); if(rd.get("totalReturned")!=null) totalReturned+=Integer.parseInt(rd.get("totalReturned").toString()); if(rd.get("traceId")!=null) traceId=rd.get("traceId").toString(); } }
-        Map<String,Object> data=new HashMap<>(); data.put("returnOrderNos",returnOrderNos); data.put("totalReturned",totalReturned); data.put("traceId",traceId); return ApiResponse.success(data);
+        Long borrowDetailId=parseLong(stringValue(body.get("borrowDetailId")),"borrowDetailId");
+        String returnCondition=body.get("returnCondition")==null?null:String.valueOf(body.get("returnCondition")).trim();
+        Integer points=parseOptionalNonNegativeInt(body.get("points"),"points");
+        AjaxResult result=bookBorrowService.returnBook(borrowDetailId,returnCondition,points,
+                body.get("remark")==null?null:String.valueOf(body.get("remark")),
+                getStaffId(request),getStaffName(request),null);
+        if(result.isError()) throw new ApiException(ApiErrorCode.BORROW_RETURN_DENIED,(String)result.get("msg"));
+        return ApiResponse.success((Map<String,Object>)result.get("data"));
     }
 
     @SuppressWarnings("unchecked")
@@ -279,6 +277,7 @@ public class StaffController {
     private String borrowDisabledReason(boolean memberActive,boolean hasBorrowCard,boolean hasBorrowQuota){ if(!memberActive) return "Member inactive"; if(!hasBorrowCard) return "No active borrow card"; if(!hasBorrowQuota) return "Borrow limit reached"; return null; }
     private int remainingQty(BookBorrowDetail d){ int b=d.getBorrowQty()!=null?d.getBorrowQty():0; int r=d.getReturnedQty()!=null?d.getReturnedQty():0; int p=d.getPurchaseQty()!=null?d.getPurchaseQty():0; return b-r-p; }
     private Long parseLong(String v,String fieldName){ try{return Long.valueOf(v);}catch(Exception e){ throw new ApiException(ApiErrorCode.PARAM_INVALID,fieldName+" must be a number"); } }
+    private Integer parseOptionalNonNegativeInt(Object value,String fieldName){ if(value==null||String.valueOf(value).trim().isEmpty()) return null; try{ int parsed=Integer.parseInt(String.valueOf(value).trim()); if(parsed<0) throw new NumberFormatException(); return parsed; }catch(Exception e){ throw new ApiException(ApiErrorCode.PARAM_INVALID,fieldName+" must be a non-negative integer"); } }
     private int parseInt(Object v,int def){ if(v==null) return def; return Integer.parseInt(v.toString()); }
     private String stringValue(Object v){ return v!=null?String.valueOf(v):null; }
     private String requestRemark(Map<String,Object> body){ String v=stringValue(body.get("remark")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("remarks")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("memo")); if(v==null||v.trim().isEmpty()) v=stringValue(body.get("note")); return v!=null?v.trim():null; }

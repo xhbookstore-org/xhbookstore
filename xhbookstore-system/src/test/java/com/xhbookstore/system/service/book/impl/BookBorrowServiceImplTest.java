@@ -58,7 +58,17 @@ class BookBorrowServiceImplTest {
         Member member = member(1);
         when(memberMapper.selectMemberById(1)).thenReturn(member);
         when(detailImageMapper.selectByImageIdForUpdate("IMG-1")).thenReturn(tempImage("IMG-1", 1, "9"));
+        when(detailImageMapper.selectByImageIdForUpdate("IMG-2")).thenReturn(tempImage("IMG-2", 1, "9"));
+        when(detailImageMapper.selectByImageIdForUpdate("IMG-3")).thenReturn(tempImage("IMG-3", 1, "9"));
+        when(detailImageMapper.selectByImageIdForUpdate("IMG-4")).thenReturn(tempImage("IMG-4", 1, "9"));
+        when(detailImageMapper.selectByImageIdForUpdate("IMG-5")).thenReturn(tempImage("IMG-5", 1, "9"));
+        when(detailImageMapper.selectByImageIdForUpdate("IMG-6")).thenReturn(tempImage("IMG-6", 1, "9"));
         when(detailImageMapper.bindToDetail(eq("IMG-1"), eq(1), any(), any(), any(), eq(1))).thenReturn(1);
+        when(detailImageMapper.bindToDetail(eq("IMG-2"), eq(1), any(), any(), any(), eq(2))).thenReturn(1);
+        when(detailImageMapper.bindToDetail(eq("IMG-3"), eq(1), any(), any(), any(), eq(3))).thenReturn(1);
+        when(detailImageMapper.bindToDetail(eq("IMG-4"), eq(1), any(), any(), any(), eq(1))).thenReturn(1);
+        when(detailImageMapper.bindToDetail(eq("IMG-5"), eq(1), any(), any(), any(), eq(2))).thenReturn(1);
+        when(detailImageMapper.bindToDetail(eq("IMG-6"), eq(1), any(), any(), any(), eq(3))).thenReturn(1);
         when(pointsService.grantBorrowPoints(eq(1), any(), eq(2), eq(3L)))
                 .thenReturn(Map.of("status", "SUCCESS", "points", 20));
         doAnswer(invocation -> {
@@ -72,14 +82,16 @@ class BookBorrowServiceImplTest {
         }).when(detailMapper).insert(any());
 
         service.createBorrowOrder(1, List.of(
-                Map.of("bookCode", "A-001", "bookName", "同名书", "imageIds", List.of("IMG-1")),
-                Map.of("bookCode", "A-002", "bookName", "同名书")),
+                Map.of("bookCode", "A-001", "bookName", "同名书", "imageIds", List.of("IMG-1", "IMG-2", "IMG-3")),
+                Map.of("imageIds", List.of("IMG-4", "IMG-5", "IMG-6"))),
                 "remark", "9", "张店员", 3L);
 
         ArgumentCaptor<BookBorrowDetail> details = ArgumentCaptor.forClass(BookBorrowDetail.class);
         verify(detailMapper, org.mockito.Mockito.times(2)).insert(details.capture());
         assertThat(details.getAllValues()).extracting(BookBorrowDetail::getBookCode)
-                .containsExactly("A-001", "A-002");
+                .containsExactly("A-001", null);
+        assertThat(details.getAllValues()).extracting(BookBorrowDetail::getBookName)
+                .containsExactly("同名书", "借阅图书");
         assertThat(details.getAllValues()).extracting(BookBorrowDetail::getBorrowQty)
                 .containsOnly(1);
         verify(detailImageMapper).bindToDetail(eq("IMG-1"), eq(1), eq(200L), eq(100L), any(), eq(1));
@@ -87,7 +99,7 @@ class BookBorrowServiceImplTest {
     }
 
     @Test
-    void createBorrowOrderRejectsMoreThanThreeImagesBeforeWriting() {
+    void createBorrowOrderRequiresExactlyThreeImagesBeforeWriting() {
         when(memberMapper.selectMemberById(1)).thenReturn(member(1));
         Map<String, Object> book = Map.of(
                 "bookCode", "A-001", "bookName", "书",
@@ -95,7 +107,7 @@ class BookBorrowServiceImplTest {
 
         assertThatThrownBy(() -> service.createBorrowOrder(1, List.of(book), null, "9", "staff", 1L))
                 .isInstanceOf(BookBorrowException.class)
-                .hasMessageContaining("at most 3 images");
+                .hasMessageContaining("exactly 3 images");
 
         verify(orderMapper, never()).insert(any());
         verify(detailMapper, never()).insert(any());
@@ -103,18 +115,11 @@ class BookBorrowServiceImplTest {
 
     @Test
     void returnBookDoesNotWriteWhenSecondDetailIsAlreadySettled() {
-        BookBorrowOrder order = order(10L, "DY1");
-        when(orderMapper.selectByOrderNo("DY1")).thenReturn(order);
-        when(detailMapper.selectByIdForUpdate(1L)).thenReturn(detail(1L, 10L, "DY1", 1, 0, 0));
-        when(detailMapper.selectByIdForUpdate(2L)).thenReturn(detail(2L, 10L, "DY1", 1, 1, 0));
+        when(detailMapper.selectByIdForUpdate(1L)).thenReturn(detail(1L, 10L, "DY1", 1, 1, 0));
 
-        List<Map<String, Object>> items = List.of(
-                Map.of("borrowDetailId", 1L),
-                Map.of("borrowDetailId", 2L));
-
-        assertThatThrownBy(() -> service.returnBook("DY1", items, "1", "staff", 1L))
+        assertThatThrownBy(() -> service.returnBook(1L, "intact", null, null, "1", "staff", 1L))
                 .isInstanceOf(BookBorrowException.class)
-                .hasMessageContaining("exceeds remaining quantity");
+                .hasMessageContaining("already been settled");
 
         verify(returnMapper, never()).insert(any());
         verify(detailMapper, never()).updateReturnInfo(any());
