@@ -54,6 +54,13 @@
             <artifactId>xhbookstore-generator</artifactId>
         </dependency>
 
+        <!-- 腾讯云 COS：管理端门店二维码等图片上传 -->
+        <dependency>
+            <groupId>com.qcloud</groupId>
+            <artifactId>cos_api</artifactId>
+            <version>5.6.227</version>
+        </dependency>
+
     </dependencies>
 
     <build>

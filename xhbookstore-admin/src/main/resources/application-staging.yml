@@ -40,6 +40,14 @@ xhbookstore:
   addressEnabled: false
   captchaType: math
 
+# 腾讯云 COS（与小程序 API 使用同一存储）
+cos:
+  secret-id: ${COS_SECRET_ID}
+  secret-key: ${COS_SECRET_KEY}
+  region: ${COS_REGION:ap-beijing}
+  bucket: ${COS_BUCKET:myfirst-1445566426}
+  base-url: ${COS_BASE_URL:https://myfirst-1445566426.cos.ap-beijing.myqcloud.com}
+
 # Springdoc（测试环境启用）
 springdoc:
   api-docs:

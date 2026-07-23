@@ -160,7 +160,7 @@
         <el-row>
           <el-col :span="24">
             <el-form-item label="门店二维码" prop="qrCodeImageUrl">
-              <ImageUpload v-model="form.qrCodeImageUrl" :limit="1" :file-size="5" :is-show-tip="true" />
+              <ImageUpload v-model="form.qrCodeImageUrl" action="/common/cos/image" :limit="1" :file-size="5" :is-show-tip="true" />
             </el-form-item>
           </el-col>
         </el-row>

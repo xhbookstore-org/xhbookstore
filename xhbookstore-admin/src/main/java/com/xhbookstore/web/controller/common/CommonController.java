@@ -18,7 +18,9 @@ import com.xhbookstore.common.core.domain.AjaxResult;
 import com.xhbookstore.common.utils.StringUtils;
 import com.xhbookstore.common.utils.file.FileUploadUtils;
 import com.xhbookstore.common.utils.file.FileUtils;
+import com.xhbookstore.common.utils.file.MimeTypeUtils;
 import com.xhbookstore.framework.config.ServerConfig;
+import com.xhbookstore.web.service.AdminCosService;
 
 /**
  * 通用请求处理
@@ -33,6 +35,9 @@ public class CommonController
 
     @Autowired
     private ServerConfig serverConfig;
+
+    @Autowired
+    private AdminCosService adminCosService;
 
     private static final String FILE_DELIMITER = ",";
 
@@ -91,6 +96,31 @@ public class CommonController
         catch (Exception e)
         {
             return AjaxResult.error(e.getMessage());
+        }
+    }
+
+    /**
+     * 管理端业务图片上传到腾讯云 COS。
+     * 返回格式与通用上传接口保持一致，前端组件可直接使用。
+     */
+    @PostMapping("/cos/image")
+    public AjaxResult uploadCosImage(MultipartFile file)
+    {
+        try
+        {
+            FileUploadUtils.assertAllowed(file, MimeTypeUtils.IMAGE_EXTENSION);
+            String url = adminCosService.uploadImage(file, "bookstore/admin/store-qrcodes");
+            AjaxResult ajax = AjaxResult.success();
+            ajax.put("url", url);
+            ajax.put("fileName", url);
+            ajax.put("newFileName", FileUtils.getName(url));
+            ajax.put("originalFilename", file.getOriginalFilename());
+            return ajax;
+        }
+        catch (Exception e)
+        {
+            log.warn("管理端 COS 图片上传失败: {}", e.getMessage());
+            return AjaxResult.error("图片上传失败，请重试");
         }
     }
 
