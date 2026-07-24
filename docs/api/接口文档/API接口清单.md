@@ -39,7 +39,7 @@
 
 | 方法 | 路径 | 说明 | 详细文档 |
 |---|---|---|---|
-| GET | `/staff/home` | 员工首页，返回真实门店/员工当日借阅统计 | [staff/01-员工首页.md](staff/01-员工首页.md) |
+| GET | `/staff/home` | 员工首页，返回门店小程序码及真实门店/员工当日借阅统计 | [staff/01-员工首页.md](staff/01-员工首页.md) |
 | POST | `/staff/member-code/scan` | 解析会员码 | [staff/02-解析会员码.md](staff/02-解析会员码.md) |
 | GET | `/staff/members/{memberId}/overview` | 查询扫码会员概要 | [staff/03-查询扫码会员概要.md](staff/03-查询扫码会员概要.md) |
 | GET | `/staff/members/{memberId}/member-cards` | 查询扫码会员的会员卡 | [staff/17-查询指定会员会员卡.md](staff/17-查询指定会员会员卡.md) |

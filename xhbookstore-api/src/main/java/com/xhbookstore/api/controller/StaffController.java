@@ -54,6 +54,7 @@ public class StaffController {
         Map<String,Object> data=new HashMap<>();
         SysDept dept=staff.getDeptId()!=null?sysDeptMapper.selectDeptById(staff.getDeptId()):null;
         data.put("storeName",dept!=null?dept.getDeptName():"Xinhua Bookstore");
+        data.put("storeQrCodeImageUrl",dept!=null?dept.getQrCodeImageUrl():null);
         data.put("todayStoreBorrowCount",staff.getDeptId()!=null?bookBorrowService.countTodayByDeptId(staff.getDeptId()):0);
         data.put("todayStaffBorrowCount",bookBorrowService.countTodayByStaffId(String.valueOf(staff.getUserId())));
         return ApiResponse.success(data);
