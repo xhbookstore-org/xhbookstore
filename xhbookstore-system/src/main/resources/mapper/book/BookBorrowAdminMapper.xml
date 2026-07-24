@@ -55,7 +55,7 @@
                end as return_status,
                coalesce((select sum(p.amount) from xhbs_points_order p
                          where p.business_type = 'BOOK_BORROW'
-                           and p.business_order_no = o.order_no
+                           and p.business_order_no collate utf8mb4_unicode_ci = o.order_no collate utf8mb4_unicode_ci
                            and p.order_status = 'SUCCESS' and p.is_del = 0), 0) as points,
                o.borrow_time,
                (select max(r.return_time) from book_return_detail r

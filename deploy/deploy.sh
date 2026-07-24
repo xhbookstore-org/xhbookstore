@@ -164,7 +164,9 @@ EOF
       | awk -v keep="$DEPLOY_KEEP" 'NR > keep {$1=""; sub(/^ /, ""); print}'
   )
   for obsolete_release in "${obsolete_releases[@]}"; do
-    [[ -n "$obsolete_release" ]] && rm -rf "$obsolete_release"
+    if [[ -n "$obsolete_release" ]] && ! rm -rf "$obsolete_release"; then
+      log "warning: unable to remove obsolete release: ${obsolete_release}"
+    fi
   done
 
   log "deployment completed: ${VERSION}"
