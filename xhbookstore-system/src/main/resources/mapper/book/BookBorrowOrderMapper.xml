@@ -73,11 +73,13 @@
     </select>
 
     <select id="countTodayByDeptId" resultType="int">
-        select count(1) from book_borrow_order
-        where is_del = 0
-          and dept_id = #{deptId}
-          and borrow_time &gt;= current_date()
-          and borrow_time &lt; date_add(current_date(), interval 1 day)
+        select coalesce(sum(d.borrow_qty), 0)
+        from book_borrow_detail d
+        inner join book_borrow_order o on o.id = d.borrow_order_id and o.is_del = 0
+        where d.is_del = 0
+          and o.dept_id = #{deptId}
+          and d.borrow_time &gt;= current_date()
+          and d.borrow_time &lt; date_add(current_date(), interval 1 day)
     </select>
 
     <select id="countTodayByStaffId" resultType="int">
@@ -90,6 +92,16 @@
 
     <select id="countByMemberId" resultType="int">
         select count(1) from book_borrow_order where member_id = #{memberId} and is_del = 0
+    </select>
+
+    <select id="sumCurrentYearBorrowQtyByMemberId" resultType="int">
+        select coalesce(sum(d.borrow_qty), 0)
+        from book_borrow_detail d
+        inner join book_borrow_order o on o.id = d.borrow_order_id and o.is_del = 0
+        where d.is_del = 0
+          and o.member_id = #{memberId}
+          and d.borrow_time &gt;= date_format(current_date(), '%Y-01-01')
+          and d.borrow_time &lt; date_add(date_format(current_date(), '%Y-01-01'), interval 1 year)
     </select>
 
     <update id="updateStatus" parameterType="com.xhbookstore.system.domain.book.BookBorrowOrder">

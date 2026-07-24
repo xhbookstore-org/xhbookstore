@@ -14,5 +14,6 @@ public interface BookBorrowOrderMapper {
     int countTodayByDeptId(@Param("deptId") Long deptId);
     int countTodayByStaffId(@Param("staffId") String staffId);
     int countByMemberId(@Param("memberId") Integer memberId);
+    int sumCurrentYearBorrowQtyByMemberId(@Param("memberId") Integer memberId);
     int updateStatus(BookBorrowOrder order);
 }

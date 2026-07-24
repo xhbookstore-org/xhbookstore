@@ -186,6 +186,7 @@ public class StaffController {
         BookBorrowDetail detail=bookBorrowService.selectDetailById(parseLong(detailId,"detailId"));
         if(detail==null) throw new ApiException(ApiErrorCode.NOT_FOUND,"Borrow detail not found");
         BookBorrowOrder order=bookBorrowService.selectOrderByNo(detail.getBorrowOrderNo());
+        if (order != null) order.setMemberPhone(maskPhone(order.getMemberPhone()));
         List<BookReturnDetail> returns=order!=null?bookBorrowService.selectReturnsByOrderId(order.getId()):Collections.emptyList();
         Map<String,Object> data=new HashMap<>();
         data.put("item",buildFlatItem(order,detail));

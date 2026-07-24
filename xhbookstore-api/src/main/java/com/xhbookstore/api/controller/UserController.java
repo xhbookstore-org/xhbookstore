@@ -182,12 +182,12 @@ public class UserController {
                 null, null, memberId, false, offset, pageSize);
         long total = bookBorrowService.countBorrowDetailPage(null, null, memberId, false);
         int currentBorrowingCount = bookBorrowService.sumRemainingByMemberId(memberId);
-        int borrowOrderCount = bookBorrowService.countBorrowOrdersByMemberId(memberId);
+        int yearBorrowCount = bookBorrowService.sumCurrentYearBorrowQtyByMemberId(memberId);
 
         String phone = (String) request.getAttribute("phone");
         Map<String, Object> data = new HashMap<>();
         data.put("memberDisplay", maskPhone(phone));
-        data.put("yearBorrowCount", borrowOrderCount);
+        data.put("yearBorrowCount", yearBorrowCount);
         data.put("currentBorrowingCount", currentBorrowingCount);
         data.put("page", new PageResult<>(records, pageNo, pageSize, total));
         return ApiResponse.success(data);
@@ -341,22 +341,14 @@ public class UserController {
     private Map<String, Integer> borrowStats(Integer memberId) {
         Map<String, Integer> stats = new HashMap<>();
         int currentBorrowingCount = 0;
-        int yearBorrowCount = 0;
+        int yearBorrowCount = bookBorrowService.sumCurrentYearBorrowQtyByMemberId(memberId);
         List<BookBorrowOrder> orders = bookBorrowService.selectByMemberId(memberId);
-        Calendar now = Calendar.getInstance();
         if (orders != null) {
             for (BookBorrowOrder order : orders) {
                 List<BookBorrowDetail> details = bookBorrowService.selectDetailsByOrderId(order.getId());
                 if (details == null) continue;
                 for (BookBorrowDetail detail : details) {
                     currentBorrowingCount += Math.max(0, remainingQty(detail));
-                    if (detail.getBorrowTime() != null) {
-                        Calendar created = Calendar.getInstance();
-                        created.setTime(detail.getBorrowTime());
-                        if (created.get(Calendar.YEAR) == now.get(Calendar.YEAR)) {
-                            yearBorrowCount += detail.getBorrowQty() != null ? detail.getBorrowQty() : 0;
-                        }
-                    }
                 }
             }
         }

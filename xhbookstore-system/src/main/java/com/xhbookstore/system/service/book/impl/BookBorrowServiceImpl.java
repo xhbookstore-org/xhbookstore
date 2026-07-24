@@ -405,6 +405,11 @@ public class BookBorrowServiceImpl implements IBookBorrowService {
     }
 
     @Override
+    public int sumCurrentYearBorrowQtyByMemberId(Integer memberId) {
+        return orderMapper.sumCurrentYearBorrowQtyByMemberId(memberId);
+    }
+
+    @Override
     public int sumRemainingByMemberId(Integer memberId) {
         return detailMapper.sumRemainingByMemberId(memberId);
     }
