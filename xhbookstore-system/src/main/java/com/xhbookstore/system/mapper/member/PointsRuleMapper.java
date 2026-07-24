@@ -1,5 +1,6 @@
 package com.xhbookstore.system.mapper.member;
 
+import java.util.Date;
 import java.util.List;
 import org.apache.ibatis.annotations.Param;
 import com.xhbookstore.system.domain.member.PointsRule;
@@ -22,7 +23,9 @@ public interface PointsRuleMapper {
 
     List<PointsRule> selectRuleList(@Param("ruleName") String ruleName,
                                     @Param("direction") String direction,
-                                    @Param("implementationStatus") String implementationStatus);
+                                    @Param("implementationStatus") String implementationStatus,
+                                    @Param("beginEffectiveFrom") Date beginEffectiveFrom,
+                                    @Param("endEffectiveFrom") Date endEffectiveFrom);
 
     PointsRule selectRuleById(@Param("id") Long id);
 

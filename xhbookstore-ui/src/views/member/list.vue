@@ -39,9 +39,6 @@
 
     <el-row :gutter="10" class="mb8">
       <el-col :span="1.5">
-        <el-button type="primary" plain icon="el-icon-plus" size="mini" @click="handleAdd" v-hasPermi="['member:member:add']">新增</el-button>
-      </el-col>
-      <el-col :span="1.5">
         <el-button type="info" plain icon="el-icon-upload2" size="mini" @click="handleImport" v-hasPermi="['member:member:import']">导入</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -77,7 +74,7 @@
       <el-table-column label="最后操作时间" align="center" prop="updatedAt" width="160">
         <template slot-scope="scope">{{ parseTime(scope.row.updatedAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" align="center" width="300" class-name="small-padding fixed-width">
+      <el-table-column label="操作" align="center" width="300" fixed="right" class-name="small-padding fixed-width">
         <template slot-scope="scope">
           <el-button size="mini" type="text" icon="el-icon-star-off" @click="handlePoints(scope.row)" v-hasPermi="['member:member:points']">积分</el-button>
           <el-button size="mini" type="text" icon="el-icon-view" @click="handleView(scope.row)" v-hasPermi="['member:member:query']">查看</el-button>

@@ -1,6 +1,8 @@
 package com.xhbookstore.web.controller.member;
 
+import java.util.Date;
 import java.util.List;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -21,9 +23,12 @@ public class PointsRuleController extends BaseController {
     @GetMapping("/list")
     public TableDataInfo list(@RequestParam(required = false) String ruleName,
                               @RequestParam(required = false) String direction,
-                              @RequestParam(required = false) String implementationStatus) {
+                              @RequestParam(required = false) String implementationStatus,
+                              @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date beginEffectiveFrom,
+                              @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss") Date endEffectiveFrom) {
         startPage();
-        List<PointsRule> list = pointsRuleService.selectRuleList(ruleName, direction, implementationStatus);
+        List<PointsRule> list = pointsRuleService.selectRuleList(ruleName, direction, implementationStatus,
+                beginEffectiveFrom, endEffectiveFrom);
         return getDataTable(list);
     }
 

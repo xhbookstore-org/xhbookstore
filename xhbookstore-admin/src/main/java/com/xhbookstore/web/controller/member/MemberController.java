@@ -55,10 +55,7 @@ public class MemberController extends BaseController {
     @Log(title = "会员管理", businessType = BusinessType.INSERT)
     @PostMapping
     public AjaxResult add(@RequestBody Member member) {
-        if (member.getDeptId() == null) {
-            member.setDeptId(getLoginUser().getDeptId());
-        }
-        return memberService.insertMember(member, null);
+        return AjaxResult.error("管理后台不支持新增会员，请通过批量导入或小程序端注册");
     }
 
     @PreAuthorize("@ss.hasPermi('member:member:edit')")

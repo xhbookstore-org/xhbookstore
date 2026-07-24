@@ -302,8 +302,11 @@ public class MemberServiceImpl implements IMemberService {
 
     private ImportResult importOneMember(ImportRow row, Long deptId, String operator, Map<String, CardType> cardTypeMap) {
         if (StringUtils.isBlank(row.phone)) throw new IllegalArgumentException("有用户无手机号，请确认数据");
-        if (StringUtils.isBlank(row.cardNo)) throw new IllegalArgumentException("会员卡号不能为空");
+        if (StringUtils.isBlank(row.cardNo)) throw new IllegalArgumentException("会员编号不能为空");
         if (StringUtils.isBlank(row.name)) throw new IllegalArgumentException("姓名不能为空");
+        if (row.joinDate == null) throw new IllegalArgumentException("入会日期不能为空或格式不正确");
+        if (StringUtils.isBlank(row.cardTypeName)) throw new IllegalArgumentException("会员类型不能为空");
+        if (row.validDate == null) throw new IllegalArgumentException("到期时间不能为空或格式不正确");
 
         row.cardNo = normalizeMemberNo(row.cardNo);
         Member exists = memberMapper.selectMemberByCardNo(row.cardNo);
@@ -493,7 +496,7 @@ public class MemberServiceImpl implements IMemberService {
         ImportRow data = new ImportRow();
         data.cardNo = normalizeMemberNo(textFirst(row, headerMap, formatter, "会员编号", "会员码", "会员卡号", "会员号", "卡号"));
         data.name = text(row, headerMap, "姓名", formatter);
-        data.cardTypeName = text(row, headerMap, "卡类型", formatter);
+        data.cardTypeName = textFirst(row, headerMap, formatter, "会员类型", "卡类型");
         data.levelName = text(row, headerMap, "会员级别", formatter);
         data.discount = decimal(row, headerMap, "折扣", formatter);
         data.totalPoints = integer(row, headerMap, "总积分", formatter);
@@ -510,7 +513,7 @@ public class MemberServiceImpl implements IMemberService {
         data.age = integer(row, headerMap, "年龄", formatter);
         data.remark = text(row, headerMap, "备注", formatter);
         data.unitPhone = text(row, headerMap, "单位电话", formatter);
-        data.validDate = date(row, headerMap, "有效日期", formatter);
+        data.validDate = dateFirst(row, headerMap, formatter, "到期时间", "有效日期");
         data.wechat = text(row, headerMap, "微信", formatter);
         data.weibo = text(row, headerMap, "微博", formatter);
         data.superiorPointsRatio = decimal(row, headerMap, "上级积分比例", formatter);
@@ -622,6 +625,14 @@ public class MemberServiceImpl implements IMemberService {
         String value = text(row, index, formatter);
         if (StringUtils.isBlank(value)) return null;
         return com.xhbookstore.common.utils.DateUtils.parseDate(value);
+    }
+
+    private Date dateFirst(Row row, Map<String, Integer> headerMap, DataFormatter formatter, String... names) {
+        for (String name : names) {
+            Date value = date(row, headerMap, name, formatter);
+            if (value != null) return value;
+        }
+        return null;
     }
 
     private boolean isRowEmpty(Row row) {

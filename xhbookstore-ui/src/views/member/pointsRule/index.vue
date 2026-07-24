@@ -17,6 +17,17 @@
           <el-option label="暂无" value="NOT_STARTED" />
         </el-select>
       </el-form-item>
+      <el-form-item label="生效时间">
+        <el-date-picker
+          v-model="effectiveRange"
+          type="datetimerange"
+          range-separator="至"
+          start-placeholder="开始时间"
+          end-placeholder="结束时间"
+          value-format="yyyy-MM-dd HH:mm:ss"
+          style="width: 350px"
+        />
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="el-icon-search" size="mini" @click="handleQuery">查询</el-button>
         <el-button icon="el-icon-refresh" size="mini" @click="resetQuery">重置</el-button>
@@ -141,6 +152,7 @@ export default {
       viewOnly: false,
       dialogTitle: '',
       form: {},
+      effectiveRange: [],
       queryParams: { pageNum: 1, pageSize: 20, ruleName: null, direction: null, implementationStatus: null },
       rules: {
         ruleCode: [{ required: true, message: '请输入规则编码', trigger: 'blur' }, { pattern: /^[A-Za-z][A-Za-z0-9_]{1,63}$/, message: '须为2-64位字母、数字或下划线', trigger: 'blur' }],
@@ -157,7 +169,12 @@ export default {
   methods: {
     getList() {
       this.loading = true
-      listPointsRule(this.queryParams).then(response => {
+      const query = { ...this.queryParams }
+      if (this.effectiveRange && this.effectiveRange.length === 2) {
+        query.beginEffectiveFrom = this.effectiveRange[0]
+        query.endEffectiveFrom = this.effectiveRange[1]
+      }
+      listPointsRule(query).then(response => {
         this.ruleList = response.rows || []
         this.total = response.total || 0
         this.loading = false
@@ -177,7 +194,7 @@ export default {
       this.$nextTick(() => { if (this.$refs.form) this.$refs.form.clearValidate() })
     },
     handleQuery() { this.queryParams.pageNum = 1; this.getList() },
-    resetQuery() { this.$refs.queryForm.resetFields(); this.handleQuery() },
+    resetQuery() { this.$refs.queryForm.resetFields(); this.effectiveRange = []; this.handleQuery() },
     handleSelectionChange(selection) {
       this.ids = selection.map(item => item.id)
       this.single = selection.length !== 1

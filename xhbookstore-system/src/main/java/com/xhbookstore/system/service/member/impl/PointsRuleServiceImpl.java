@@ -2,6 +2,7 @@ package com.xhbookstore.system.service.member.impl;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
@@ -19,11 +20,12 @@ public class PointsRuleServiceImpl implements IPointsRuleService {
     @Autowired private PointsRuleMapper pointsRuleMapper;
 
     @Override
-    public List<PointsRule> selectRuleList(String ruleName, String direction, String implementationStatus) {
+    public List<PointsRule> selectRuleList(String ruleName, String direction, String implementationStatus,
+                                           Date beginEffectiveFrom, Date endEffectiveFrom) {
         String normalizedDirection = direction == null ? null : direction.trim().toUpperCase();
         String normalizedStatus = implementationStatus == null ? null : implementationStatus.trim().toUpperCase();
         return pointsRuleMapper.selectRuleList(ruleName == null ? null : ruleName.trim(),
-                normalizedDirection, normalizedStatus);
+                normalizedDirection, normalizedStatus, beginEffectiveFrom, endEffectiveFrom);
     }
 
     @Override

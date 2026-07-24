@@ -113,6 +113,12 @@
         <if test="implementationStatus != null and implementationStatus != ''">
             and implementation_status = #{implementationStatus}
         </if>
+        <if test="beginEffectiveFrom != null">
+            and effective_from &gt;= #{beginEffectiveFrom}
+        </if>
+        <if test="endEffectiveFrom != null">
+            and effective_from &lt;= #{endEffectiveFrom}
+        </if>
         order by sort_order asc, id asc
     </select>
 

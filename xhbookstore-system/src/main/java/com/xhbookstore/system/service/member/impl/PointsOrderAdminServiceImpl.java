@@ -58,6 +58,6 @@ public class PointsOrderAdminServiceImpl implements IPointsOrderAdminService {
 
     @Override
     public List<PointsRule> selectRuleOptions() {
-        return ruleMapper.selectRuleList(null, null, null);
+        return ruleMapper.selectRuleList(null, null, null, null, null);
     }
 }
